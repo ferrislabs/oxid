@@ -1,8 +1,18 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { Bell, Search } from "lucide-react";
+import { Bell, LogOut, Search, User } from "lucide-react";
+import { useAuth } from "react-oidc-context";
 
 import { AppSidebar } from "#/components/app-sidebar";
+import { AuthGate } from "#/components/auth-gate";
 import { Button } from "#/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/ui/dropdown-menu";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -12,6 +22,24 @@ import {
 export const Route = createFileRoute("/_app")({ component: AppLayout });
 
 function AppLayout() {
+	return (
+		<AuthGate>
+			<AppShell />
+		</AuthGate>
+	);
+}
+
+function AppShell() {
+	const auth = useAuth();
+	const profile = auth.user?.profile;
+	const displayName =
+		profile?.name ||
+		profile?.preferred_username ||
+		profile?.email ||
+		"Utilisateur";
+	const email = profile?.email ?? "";
+	const initials = getInitials(displayName);
+
 	return (
 		<SidebarProvider>
 			<AppSidebar />
@@ -44,12 +72,44 @@ function AppLayout() {
 							<Bell />
 							<span className="sr-only">Notifications</span>
 						</Button>
-						<button
-							type="button"
-							className="flex size-9 items-center justify-center rounded-lg bg-orange-600 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-						>
-							NB
-						</button>
+
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
+									className="flex size-9 items-center justify-center rounded-lg bg-orange-600 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+								>
+									{initials}
+								</button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-56">
+								<DropdownMenuLabel className="font-normal">
+									<div className="flex flex-col">
+										<span className="truncate font-medium">{displayName}</span>
+										{email ? (
+											<span className="truncate text-xs text-muted-foreground">
+												{email}
+											</span>
+										) : null}
+									</div>
+								</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem disabled>
+									<User />
+									Mon profil
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									variant="destructive"
+									onClick={() => {
+										void auth.signoutRedirect();
+									}}
+								>
+									<LogOut />
+									Se déconnecter
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 				</header>
 				<div className="flex flex-1 flex-col">
@@ -57,5 +117,16 @@ function AppLayout() {
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
+	);
+}
+
+function getInitials(name: string): string {
+	return (
+		name
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((w) => w[0]?.toUpperCase() ?? "")
+			.join("") || "U"
 	);
 }
