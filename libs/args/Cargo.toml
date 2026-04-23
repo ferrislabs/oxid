@@ -1,0 +1,9 @@
+[package]
+name = "args"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+url = { workspace = true }

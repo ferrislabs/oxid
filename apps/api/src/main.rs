@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod state;
 
 use std::error::Error;
 
