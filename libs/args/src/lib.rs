@@ -1,16 +1,20 @@
 use clap::Parser;
 
-use crate::{auth::AuthArgs, database::DatabaseArgs, log::LogArgs, server::ServerArgs};
+use crate::{
+    auth::AuthArgs, database::DatabaseArgs, log::LogArgs, observability::ObservabilityArgs,
+    server::ServerArgs,
+};
 
 pub mod auth;
 pub mod database;
 pub mod log;
+pub mod observability;
 pub mod server;
 
 #[derive(Debug, Clone, Parser)]
 pub struct Args {
     #[command(flatten)]
-    pub lgo: LogArgs,
+    pub log: LogArgs,
 
     #[command(flatten)]
     pub db: DatabaseArgs,
@@ -20,4 +24,7 @@ pub struct Args {
 
     #[command(flatten)]
     pub server: ServerArgs,
+
+    #[command(flatten)]
+    pub observability: ObservabilityArgs,
 }
