@@ -7,3 +7,8 @@ edition.workspace = true
 [dependencies]
 common = { workspace = true }
 auth = { workspace = true }
+
+uuid = { workspace = true }
+serde = { workspace = true }
+utoipa = { workspace = true }
+chrono = { workspace = true }

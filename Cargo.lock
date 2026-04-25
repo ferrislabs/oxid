@@ -1961,7 +1961,11 @@ name = "oxid-core"
 version = "0.1.0"
 dependencies = [
  "auth",
+ "chrono",
  "common",
+ "serde",
+ "utoipa",
+ "uuid",
 ]
 
 [[package]]

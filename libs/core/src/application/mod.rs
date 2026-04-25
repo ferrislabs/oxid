@@ -1,6 +1,8 @@
 use auth::{AuthService, FerrisKeyRepository};
 use common::{Config, CoreError};
 
+pub mod user;
+
 pub type OxidAuthService = AuthService<FerrisKeyRepository>;
 
 #[derive(Clone)]
