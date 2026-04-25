@@ -1,11 +1,9 @@
 [package]
-name = "args"
+name = "oxid-core"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
 common = { workspace = true }
-
-clap = { workspace = true }
-url = { workspace = true }
+auth = { workspace = true }

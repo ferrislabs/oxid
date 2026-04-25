@@ -1,4 +1,5 @@
 use clap::Parser;
+use common::Config;
 
 use crate::{
     auth::AuthArgs, database::DatabaseArgs, log::LogArgs, observability::ObservabilityArgs,
@@ -27,4 +28,13 @@ pub struct Args {
 
     #[command(flatten)]
     pub observability: ObservabilityArgs,
+}
+
+impl From<Args> for Config {
+    fn from(value: Args) -> Self {
+        Self {
+            auth: value.auth.into(),
+            database: value.db.into(),
+        }
+    }
 }

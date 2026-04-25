@@ -1,3 +1,5 @@
+use common::AuthConfig;
+
 #[derive(clap::Args, Debug, Clone)]
 pub struct AuthArgs {
     #[arg(
@@ -26,6 +28,14 @@ pub struct AuthArgs {
         long_help = "The client secret to use for authentication"
     )]
     pub client_secret: String,
+}
+
+impl From<AuthArgs> for AuthConfig {
+    fn from(value: AuthArgs) -> Self {
+        Self {
+            issuer: value.issuer,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -62,9 +72,12 @@ mod tests {
     fn parse_all_fields() {
         let cmd = Cmd::try_parse_from([
             "cmd",
-            "--auth-issuer", "https://sso.example.com",
-            "--auth-client-id", "oxid",
-            "--auth-client-secret", "supersecret",
+            "--auth-issuer",
+            "https://sso.example.com",
+            "--auth-client-id",
+            "oxid",
+            "--auth-client-secret",
+            "supersecret",
         ])
         .unwrap();
         assert_eq!(cmd.auth.issuer, "https://sso.example.com");

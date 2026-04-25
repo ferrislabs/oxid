@@ -7,6 +7,48 @@ use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+pub enum MiddlewareError {
+    #[error("missing authentication header")]
+    MissingAuthHeader,
+    #[error("invalid authentication header")]
+    InvalidAuthHeader,
+    #[error("authentication failed: {0}")]
+    AuthenticationFailed(String),
+}
+
+impl IntoResponse for MiddlewareError {
+    fn into_response(self) -> Response {
+        let (status, code, message) = match self {
+            MiddlewareError::MissingAuthHeader => (
+                StatusCode::UNAUTHORIZED,
+                "E_MISSING_AUTH_HEADER",
+                "Authorization header is missing",
+            ),
+            MiddlewareError::InvalidAuthHeader => (
+                StatusCode::UNAUTHORIZED,
+                "E_INVALID_AUTH_HEADER",
+                "Invalid authorization header",
+            ),
+            MiddlewareError::AuthenticationFailed(_) => (
+                StatusCode::UNAUTHORIZED,
+                "E_AUTHENTICATION_FAILED",
+                "Authentication failed",
+            ),
+        };
+
+        (
+            status,
+            Json(ErrorBody {
+                code,
+                message: message.to_string(),
+                details: None,
+            }),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ApiError {
     // 400
     #[error("Bad request: {0}")]
@@ -77,10 +119,9 @@ impl ApiError {
     fn status(&self) -> StatusCode {
         match self {
             Self::BadRequest(_) | Self::Validation(_) => StatusCode::BAD_REQUEST,
-            Self::Unauthorized
-            | Self::TokenNotFound
-            | Self::TokenExpired
-            | Self::InvalidToken => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized | Self::TokenNotFound | Self::TokenExpired | Self::InvalidToken => {
+                StatusCode::UNAUTHORIZED
+            }
             Self::Forbidden | Self::InsufficientScope(_) => StatusCode::FORBIDDEN,
             Self::NotFound | Self::ResourceNotFound(_, _) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
@@ -169,22 +210,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_401_unauthorized() {
-        assert_error!(ApiError::Unauthorized, StatusCode::UNAUTHORIZED, "UNAUTHORIZED");
+        assert_error!(
+            ApiError::Unauthorized,
+            StatusCode::UNAUTHORIZED,
+            "UNAUTHORIZED"
+        );
     }
 
     #[tokio::test]
     async fn test_401_token_not_found() {
-        assert_error!(ApiError::TokenNotFound, StatusCode::UNAUTHORIZED, "TOKEN_NOT_FOUND");
+        assert_error!(
+            ApiError::TokenNotFound,
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_NOT_FOUND"
+        );
     }
 
     #[tokio::test]
     async fn test_401_token_expired() {
-        assert_error!(ApiError::TokenExpired, StatusCode::UNAUTHORIZED, "TOKEN_EXPIRED");
+        assert_error!(
+            ApiError::TokenExpired,
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_EXPIRED"
+        );
     }
 
     #[tokio::test]
     async fn test_401_invalid_token() {
-        assert_error!(ApiError::InvalidToken, StatusCode::UNAUTHORIZED, "INVALID_TOKEN");
+        assert_error!(
+            ApiError::InvalidToken,
+            StatusCode::UNAUTHORIZED,
+            "INVALID_TOKEN"
+        );
     }
 
     #[tokio::test]
@@ -245,12 +302,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_500_internal() {
-        assert_error!(ApiError::Internal, StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+        assert_error!(
+            ApiError::Internal,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "INTERNAL_SERVER_ERROR"
+        );
     }
 
     #[tokio::test]
     async fn test_500_database() {
-        assert_error!(ApiError::Database, StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR");
+        assert_error!(
+            ApiError::Database,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR"
+        );
     }
 
     #[tokio::test]
