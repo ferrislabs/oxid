@@ -3,6 +3,7 @@ CREATE TABLE users (
     email       TEXT        NOT NULL UNIQUE,
     username    TEXT        NOT NULL UNIQUE,
     display_name TEXT       NOT NULL,
+    sub         TEXT        NOT NULL UNIQUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

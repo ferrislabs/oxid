@@ -1,37 +1,26 @@
-use chrono::Utc;
-use common::{CoreError, generate_uuid_v7};
+use common::CoreError;
+use oxid_macros::transactional;
+use sqlx::PgPool;
 
-use crate::{User, UserId, commands::CreateUserCommand, ports::UserRepository};
+use crate::{
+    User,
+    domain::user::{commands::CreateUserCommand, service::UserService},
+    infrastructure::user::postgres::PgUserRepository,
+};
 
 #[derive(Clone)]
-pub struct UserService<U>
-where
-    U: UserRepository,
-{
-    user_repository: U,
+pub struct UserUseCase {
+    pool: PgPool,
 }
 
-impl<U> UserService<U>
-where
-    U: UserRepository,
-{
-    pub fn new(user_repository: U) -> Self {
-        Self { user_repository }
+impl UserUseCase {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 
+    #[transactional]
     pub async fn create_user(&self, command: CreateUserCommand) -> Result<User, CoreError> {
-        let now = Utc::now();
-        let user = User {
-            id: UserId(generate_uuid_v7()),
-            name: command.name,
-            email: command.email,
-            sub: command.sub,
-            created_at: now,
-            updated_at: now,
-        };
-
-        let user = self.user_repository.upsert_by_email(&user).await?;
-
-        Ok(user)
+        let mut service = UserService::new(PgUserRepository::new(tx));
+        service.create_user(command).await
     }
 }

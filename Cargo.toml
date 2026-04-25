@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/api", "libs/args", "libs/auth", "libs/common", "libs/core", "libs/server"]
+members = ["apps/api", "libs/args", "libs/auth", "libs/common", "libs/core", "libs/macros", "libs/server"]
 resolver = "3"
 
 [workspace.package]
@@ -33,14 +33,16 @@ utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 
 base64 = "0.22.1"
-chrono = "0.4.42"
+chrono = { version = "0.4.42", features = ["serde"] }
 jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.12.24", features = ["json"] }
 uuid = { version = "1.19.0", features = ["serde", "v4", "v7"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "macros", "json"] }
 
 # Oxid Dependencies
 args = { path = "libs/args" }
 auth = { path = "libs/auth" }
 common = { path = "libs/common" }
 oxid-core = { path = "libs/core" }
+oxid-macros = { path = "libs/macros" }
 server = { path = "libs/server" }

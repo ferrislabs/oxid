@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 pub mod commands;
 pub mod ports;
+pub mod service;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, ToSchema)]
 pub struct UserId(pub Uuid);
@@ -28,6 +29,7 @@ impl Display for UserId {
 pub struct User {
     pub id: UserId,
     pub email: String,
+    pub username: String,
     pub name: String,
     pub sub: String,
     pub created_at: DateTime<Utc>,

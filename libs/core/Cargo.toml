@@ -7,8 +7,10 @@ edition.workspace = true
 [dependencies]
 common = { workspace = true }
 auth = { workspace = true }
+oxid-macros = { workspace = true }
 
 uuid = { workspace = true }
 serde = { workspace = true }
 utoipa = { workspace = true }
 chrono = { workspace = true }
+sqlx = { workspace = true }

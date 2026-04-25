@@ -23,7 +23,19 @@ pub struct AuthConfig {
 }
 
 #[derive(Debug, Error)]
-pub enum CoreError {}
+pub enum CoreError {
+    #[error("resource not found")]
+    NotFound,
+
+    #[error("conflict: {0}")]
+    Conflict(String),
+
+    #[error("database error: {0}")]
+    Database(String),
+
+    #[error("internal error: {0}")]
+    Internal(String),
+}
 
 pub fn generate_timestamp() -> (DateTime<Utc>, Timestamp) {
     let now = Utc::now();

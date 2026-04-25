@@ -1,4 +1,4 @@
-use auth::{Identity, Token};
+use auth::Token;
 use axum::{
     extract::{Request, State},
     middleware::Next,
@@ -35,23 +35,6 @@ pub async fn auth_middleware(
             error!("Auth middleware: failed to identify user {:?}", e);
             MiddlewareError::AuthenticationFailed(e.to_string())
         })?;
-
-    if let Identity::User(user) = &identity {
-        let name = user.name.clone().unwrap_or_else(|| user.username.clone());
-        let email = user
-            .email
-            .clone()
-            .unwrap_or_else(|| format!("{}@local", user.username));
-
-        // let command = CreateUserCommand {
-        //     name,
-        //     email,
-        //     sub: user.id.clone(),
-        // };
-        // if let Err(err) = state.create_user(command).await {
-        //     error!("Auth middleware: failed to create user {:?}", err);
-        // }
-    }
 
     req.extensions_mut().insert(identity);
 
