@@ -33,6 +33,10 @@ where
 
         self.repo.upsert_by_email(&user).await
     }
+
+    pub async fn find_by_email(&mut self, email: &str) -> Result<Option<User>, CoreError> {
+        self.repo.find_by_email(email).await
+    }
 }
 
 #[cfg(test)]
