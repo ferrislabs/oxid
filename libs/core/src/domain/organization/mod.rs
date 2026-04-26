@@ -5,34 +5,35 @@ use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::UserId;
+
 pub mod commands;
 pub mod ports;
 pub mod service;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, ToSchema)]
-pub struct UserId(pub Uuid);
+pub struct OrganizationId(pub Uuid);
 
-impl FromStr for UserId {
+impl FromStr for OrganizationId {
     type Err = uuid::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::from_str(s).map(UserId)
+        Uuid::from_str(s).map(OrganizationId)
     }
 }
 
-impl Display for UserId {
+impl Display for OrganizationId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct User {
-    pub id: UserId,
-    pub email: String,
-    pub username: String,
+pub struct Organization {
+    pub id: OrganizationId,
     pub name: String,
-    pub sub: String,
+    pub slug: String,
+    pub owner_id: UserId,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -42,17 +43,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn user_id_parses_uuid() {
+    fn organization_id_parses_uuid() {
         let uuid = Uuid::new_v4();
-        let parsed = UserId::from_str(&uuid.to_string()).unwrap();
+        let parsed = OrganizationId::from_str(&uuid.to_string()).unwrap();
 
         assert_eq!(parsed.0, uuid);
     }
 
     #[test]
-    fn user_id_rejects_invalid_uuid() {
-        let parsed = UserId::from_str("not-a-uuid");
-
-        assert!(parsed.is_err());
+    fn organization_id_rejects_invalid_uuid() {
+        assert!(OrganizationId::from_str("not-a-uuid").is_err());
     }
 }

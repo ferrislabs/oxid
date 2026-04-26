@@ -1,23 +1,37 @@
 use auth::{AuthService, FerrisKeyRepository};
 use common::{Config, CoreError};
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
-use crate::application::user::UserUseCase;
 use crate::infrastructure::postgres::error::map_sqlx_error;
 
+pub mod member;
+pub mod organization;
+pub mod role;
 pub mod user;
 
 pub type OxidAuthService = AuthService<FerrisKeyRepository>;
 
 #[derive(Clone)]
+pub struct OxidUseCase {
+    pool: PgPool,
+}
+
+impl OxidUseCase {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[derive(Clone)]
 pub struct OxidService {
     pub auth: OxidAuthService,
-    pub users: UserUseCase,
+    pub usecase: OxidUseCase,
 }
 
 impl OxidService {
-    pub fn new(auth: OxidAuthService, users: UserUseCase) -> Self {
-        Self { auth, users }
+    pub fn new(auth: OxidAuthService, usecase: OxidUseCase) -> Self {
+        Self { auth, usecase }
     }
 }
 
@@ -38,7 +52,5 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
         .await
         .map_err(map_sqlx_error)?;
 
-    let users = UserUseCase::new(pool);
-
-    Ok(OxidService::new(auth, users))
+    Ok(OxidService::new(auth, OxidUseCase::new(pool)))
 }

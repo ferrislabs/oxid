@@ -14,3 +14,7 @@ serde = { workspace = true }
 utoipa = { workspace = true }
 chrono = { workspace = true }
 sqlx = { workspace = true }
+
+[dev-dependencies]
+mockall = { workspace = true }
+tokio = { workspace = true }

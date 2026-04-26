@@ -2,6 +2,7 @@ use common::CoreError;
 
 use crate::User;
 
+#[cfg_attr(test, mockall::automock)]
 pub trait UserRepository: Send {
     fn upsert_by_email(
         &mut self,

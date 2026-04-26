@@ -27,7 +27,6 @@ pub async fn auth_middleware(
         .map_err(|_| MiddlewareError::InvalidAuthHeader)?;
 
     let identity = state
-        .service
         .auth
         .get_identity(token.as_str())
         .await
