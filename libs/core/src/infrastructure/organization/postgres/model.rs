@@ -20,6 +20,8 @@ impl From<OrganizationRow> for Organization {
             name: row.name,
             slug: row.slug,
             owner_id: UserId(row.owner_id),
+            // M2: read deleted_at from DB once the migration + SELECT are added.
+            deleted_at: None,
             created_at: row.created_at,
             updated_at: row.updated_at,
         }

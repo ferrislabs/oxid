@@ -31,7 +31,7 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
             role.id.0,
             role.organization_id.0,
             role.name,
-            role.permissions,
+            role.permissions.bits(),
             role.created_at,
             role.updated_at,
         )

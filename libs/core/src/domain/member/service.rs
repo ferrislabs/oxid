@@ -1,14 +1,17 @@
 use chrono::Utc;
 use common::{CoreError, generate_uuid_v7};
 
-use crate::domain::{
-    member::{
-        Member, MemberId,
-        commands::{AddMemberCommand, AssignRoleCommand},
-        ports::MemberRepository,
+use crate::{
+    UserId,
+    domain::{
+        member::{
+            Member, MemberId,
+            commands::{AddMemberCommand, AssignRoleCommand},
+            ports::MemberRepository,
+        },
+        organization::OrganizationId,
+        role::RoleId,
     },
-    organization::OrganizationId,
-    role::RoleId,
 };
 
 pub struct MemberService<R>
@@ -42,6 +45,18 @@ where
         organization_id: OrganizationId,
     ) -> Result<Vec<Member>, CoreError> {
         self.repo.list_by_organization(organization_id).await
+    }
+
+    pub async fn find_membership(
+        &mut self,
+        organization_id: OrganizationId,
+        user_id: UserId,
+    ) -> Result<Option<Member>, CoreError> {
+        self.repo.find_by_org_and_user(organization_id, user_id).await
+    }
+
+    pub async fn remove_member(&mut self, member_id: MemberId) -> Result<(), CoreError> {
+        self.repo.remove(member_id).await
     }
 
     pub async fn assign_role(&mut self, command: AssignRoleCommand) -> Result<(), CoreError> {
@@ -113,6 +128,36 @@ mod tests {
         let members = service.list_members(oid).await.unwrap();
 
         assert!(members.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_membership_returns_optional_member() {
+        let oid = org_id();
+        let uid = user_id();
+
+        let mut repo = MockMemberRepository::new();
+        repo.expect_find_by_org_and_user()
+            .with(eq(oid), eq(uid))
+            .times(1)
+            .returning(|_, _| Box::pin(async { Ok(None) }));
+
+        let mut service = MemberService::new(repo);
+        let result = service.find_membership(oid, uid).await.unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn remove_member_calls_repo() {
+        let mid = MemberId(Uuid::new_v4());
+        let mut repo = MockMemberRepository::new();
+        repo.expect_remove()
+            .with(eq(mid))
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(()) }));
+
+        let mut service = MemberService::new(repo);
+        service.remove_member(mid).await.unwrap();
     }
 
     #[tokio::test]

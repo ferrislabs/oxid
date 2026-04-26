@@ -1,8 +1,10 @@
+use chrono::{DateTime, Utc};
 use common::CoreError;
 use sqlx::{Postgres, Transaction};
 
 use crate::{
-    domain::organization::{Organization, ports::OrganizationRepository},
+    UserId,
+    domain::organization::{Organization, OrganizationId, ports::OrganizationRepository},
     infrastructure::{
         organization::postgres::model::OrganizationRow, postgres::error::map_sqlx_error,
     },
@@ -41,4 +43,40 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         Ok(row.into())
     }
 
+    async fn find_by_id(
+        &mut self,
+        _id: OrganizationId,
+    ) -> Result<Option<Organization>, CoreError> {
+        Err(CoreError::Internal(
+            "PgOrganizationRepository::find_by_id not implemented (M2)".into(),
+        ))
+    }
+
+    async fn find_by_slug(&mut self, _slug: &str) -> Result<Option<Organization>, CoreError> {
+        Err(CoreError::Internal(
+            "PgOrganizationRepository::find_by_slug not implemented (M2)".into(),
+        ))
+    }
+
+    async fn list_for_user(&mut self, _user_id: UserId) -> Result<Vec<Organization>, CoreError> {
+        Err(CoreError::Internal(
+            "PgOrganizationRepository::list_for_user not implemented (M2)".into(),
+        ))
+    }
+
+    async fn update(&mut self, _organization: &Organization) -> Result<Organization, CoreError> {
+        Err(CoreError::Internal(
+            "PgOrganizationRepository::update not implemented (M2)".into(),
+        ))
+    }
+
+    async fn soft_delete(
+        &mut self,
+        _id: OrganizationId,
+        _deleted_at: DateTime<Utc>,
+    ) -> Result<(), CoreError> {
+        Err(CoreError::Internal(
+            "PgOrganizationRepository::soft_delete not implemented (M2)".into(),
+        ))
+    }
 }
