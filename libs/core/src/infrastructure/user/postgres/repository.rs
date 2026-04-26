@@ -18,6 +18,7 @@ impl<'tx> PgUserRepository<'tx> {
 }
 
 impl<'tx> UserRepository for PgUserRepository<'tx> {
+    #[tracing::instrument(skip(self, user), fields(db.system = "postgresql", db.operation = "upsert", db.table = "users", user.email = %user.email), err)]
     async fn upsert_by_email(&mut self, user: &User) -> Result<User, CoreError> {
         let row = sqlx::query_as!(
             UserRow,

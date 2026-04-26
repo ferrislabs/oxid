@@ -20,6 +20,7 @@ impl<'tx> PgRoleRepository<'tx> {
 }
 
 impl<'tx> RoleRepository for PgRoleRepository<'tx> {
+    #[tracing::instrument(skip(self, role), fields(db.system = "postgresql", db.operation = "insert", db.table = "roles", role.name = %role.name), err)]
     async fn insert(&mut self, role: &Role) -> Result<Role, CoreError> {
         let row = sqlx::query_as!(
             RoleRow,
@@ -42,6 +43,7 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
         Ok(row.into())
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "roles"), err)]
     async fn list_by_organization(
         &mut self,
         organization_id: OrganizationId,

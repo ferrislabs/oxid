@@ -25,6 +25,7 @@ where
         Self { repo }
     }
 
+    #[tracing::instrument(skip(self), fields(organization.slug = %command.slug, owner_id = %command.owner_id.0), err)]
     pub async fn create_organization(
         &mut self,
         command: CreateOrganizationCommand,
@@ -43,6 +44,7 @@ where
         self.repo.insert(&organization).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
     pub async fn get_organization(
         &mut self,
         id: OrganizationId,
@@ -50,6 +52,7 @@ where
         self.repo.find_by_id(id).await?.ok_or(CoreError::NotFound)
     }
 
+    #[tracing::instrument(skip(self), fields(user_id = %user_id.0), err)]
     pub async fn list_organizations_for_user(
         &mut self,
         user_id: UserId,
@@ -57,6 +60,7 @@ where
         self.repo.list_for_user(user_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %command.id.0, organization.slug = %command.slug), err)]
     pub async fn update_organization(
         &mut self,
         command: UpdateOrganizationCommand,
@@ -74,6 +78,7 @@ where
         self.repo.update(&organization).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
     pub async fn soft_delete_organization(
         &mut self,
         id: OrganizationId,

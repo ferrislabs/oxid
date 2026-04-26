@@ -22,6 +22,7 @@ impl<'tx> PgMemberRepository<'tx> {
 }
 
 impl<'tx> MemberRepository for PgMemberRepository<'tx> {
+    #[tracing::instrument(skip(self, member), fields(db.system = "postgresql", db.operation = "insert", db.table = "organization_members"), err)]
     async fn insert(&mut self, member: &Member) -> Result<Member, CoreError> {
         let row = sqlx::query_as!(
             MemberRow,
@@ -42,6 +43,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         Ok(row.into())
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organization_members"), err)]
     async fn list_by_organization(
         &mut self,
         organization_id: OrganizationId,
@@ -63,6 +65,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "insert", db.table = "member_roles"), err)]
     async fn assign_role(
         &mut self,
         member_id: MemberId,
@@ -84,6 +87,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organization_members"), err)]
     async fn find_by_org_and_user(
         &mut self,
         _organization_id: OrganizationId,
@@ -94,12 +98,14 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         ))
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "delete", db.table = "organization_members"), err)]
     async fn remove(&mut self, _member_id: MemberId) -> Result<(), CoreError> {
         Err(CoreError::Internal(
             "PgMemberRepository::remove not implemented (M2)".into(),
         ))
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "member_roles"), err)]
     async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
         let rows = sqlx::query!(
             r#"

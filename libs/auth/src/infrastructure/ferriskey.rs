@@ -36,6 +36,7 @@ impl FerrisKeyRepository {
         }
     }
 
+    #[tracing::instrument(skip(self), fields(issuer = %self.issuer), err)]
     async fn fetch_jwks(&self) -> Result<Jwks, AuthError> {
         let url = format!("{}/protocol/openid-connect/certs", self.issuer);
 
@@ -69,12 +70,14 @@ impl FerrisKeyRepository {
 }
 
 impl AuthRepository for FerrisKeyRepository {
+    #[tracing::instrument(skip_all, err)]
     async fn identify(&self, token: &str) -> Result<Identity, AuthError> {
         let claims = self.validate_token(token).await?;
 
         Ok(Identity::from(claims))
     }
 
+    #[tracing::instrument(skip_all, err)]
     async fn validate_token(&self, token: &str) -> Result<Claims, AuthError> {
         let header = decode_header(token).map_err(|e| {
             warn!("failed to decode token header: {}", e);
