@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::domain::{
     organization::OrganizationId,
-    role::{Role, RoleId},
+    role::{Permissions, Role, RoleId},
 };
 
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ impl From<RoleRow> for Role {
             id: RoleId(row.id),
             organization_id: OrganizationId(row.organization_id),
             name: row.name,
-            permissions: row.permissions,
+            permissions: Permissions(row.permissions),
             created_at: row.created_at,
             updated_at: row.updated_at,
         }

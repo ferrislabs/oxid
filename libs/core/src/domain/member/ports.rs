@@ -1,9 +1,12 @@
 use common::CoreError;
 
-use crate::domain::{
-    member::{Member, MemberId},
-    organization::OrganizationId,
-    role::RoleId,
+use crate::{
+    UserId,
+    domain::{
+        member::{Member, MemberId},
+        organization::OrganizationId,
+        role::RoleId,
+    },
 };
 
 #[cfg_attr(test, mockall::automock)]
@@ -17,6 +20,17 @@ pub trait MemberRepository: Send {
         &mut self,
         organization_id: OrganizationId,
     ) -> impl Future<Output = Result<Vec<Member>, CoreError>> + Send;
+
+    fn find_by_org_and_user(
+        &mut self,
+        organization_id: OrganizationId,
+        user_id: UserId,
+    ) -> impl Future<Output = Result<Option<Member>, CoreError>> + Send;
+
+    fn remove(
+        &mut self,
+        member_id: MemberId,
+    ) -> impl Future<Output = Result<(), CoreError>> + Send;
 
     fn assign_role(
         &mut self,

@@ -2,6 +2,7 @@ use common::CoreError;
 use sqlx::{Postgres, Transaction};
 
 use crate::{
+    UserId,
     domain::{
         member::{Member, MemberId, ports::MemberRepository},
         organization::OrganizationId,
@@ -81,6 +82,22 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         .map_err(map_sqlx_error)?;
 
         Ok(())
+    }
+
+    async fn find_by_org_and_user(
+        &mut self,
+        _organization_id: OrganizationId,
+        _user_id: UserId,
+    ) -> Result<Option<Member>, CoreError> {
+        Err(CoreError::Internal(
+            "PgMemberRepository::find_by_org_and_user not implemented (M2)".into(),
+        ))
+    }
+
+    async fn remove(&mut self, _member_id: MemberId) -> Result<(), CoreError> {
+        Err(CoreError::Internal(
+            "PgMemberRepository::remove not implemented (M2)".into(),
+        ))
     }
 
     async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {

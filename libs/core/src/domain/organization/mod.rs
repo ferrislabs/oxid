@@ -34,6 +34,7 @@ pub struct Organization {
     pub name: String,
     pub slug: String,
     pub owner_id: UserId,
+    pub deleted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
