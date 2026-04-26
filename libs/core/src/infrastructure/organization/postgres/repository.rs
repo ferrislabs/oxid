@@ -21,6 +21,7 @@ impl<'tx> PgOrganizationRepository<'tx> {
 }
 
 impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
+    #[tracing::instrument(skip(self, organization), fields(db.system = "postgresql", db.operation = "insert", db.table = "organizations", organization.slug = %organization.slug), err)]
     async fn insert(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
         let row = sqlx::query_as!(
             OrganizationRow,
@@ -43,6 +44,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         Ok(row.into())
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn find_by_id(
         &mut self,
         _id: OrganizationId,
@@ -52,24 +54,28 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         ))
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn find_by_slug(&mut self, _slug: &str) -> Result<Option<Organization>, CoreError> {
         Err(CoreError::Internal(
             "PgOrganizationRepository::find_by_slug not implemented (M2)".into(),
         ))
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn list_for_user(&mut self, _user_id: UserId) -> Result<Vec<Organization>, CoreError> {
         Err(CoreError::Internal(
             "PgOrganizationRepository::list_for_user not implemented (M2)".into(),
         ))
     }
 
+    #[tracing::instrument(skip(self, _organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
     async fn update(&mut self, _organization: &Organization) -> Result<Organization, CoreError> {
         Err(CoreError::Internal(
             "PgOrganizationRepository::update not implemented (M2)".into(),
         ))
     }
 
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
     async fn soft_delete(
         &mut self,
         _id: OrganizationId,

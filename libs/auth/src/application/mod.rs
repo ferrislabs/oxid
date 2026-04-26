@@ -16,6 +16,7 @@ where
         Self { auth_repository }
     }
 
+    #[tracing::instrument(skip_all, err)]
     pub async fn get_identity(&self, token: &str) -> Result<Identity, AuthError> {
         self.auth_repository.identify(token).await
     }

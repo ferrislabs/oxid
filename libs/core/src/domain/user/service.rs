@@ -18,6 +18,7 @@ where
         Self { repo }
     }
 
+    #[tracing::instrument(skip(self), fields(user.email = %command.email, user.username = %command.username), err)]
     pub async fn create_user(&mut self, command: CreateUserCommand) -> Result<User, CoreError> {
         let now = Utc::now();
         let user = User {

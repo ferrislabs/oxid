@@ -29,6 +29,7 @@ where
         Self { repo }
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %command.organization_id.0, user_id = %command.user_id.0), err)]
     pub async fn add_member(&mut self, command: AddMemberCommand) -> Result<Member, CoreError> {
         let member = Member {
             id: MemberId(generate_uuid_v7()),
@@ -40,6 +41,7 @@ where
         self.repo.insert(&member).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
     pub async fn list_members(
         &mut self,
         organization_id: OrganizationId,
@@ -47,6 +49,7 @@ where
         self.repo.list_by_organization(organization_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0, user_id = %user_id.0), err)]
     pub async fn find_membership(
         &mut self,
         organization_id: OrganizationId,
@@ -55,14 +58,17 @@ where
         self.repo.find_by_org_and_user(organization_id, user_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(member_id = %member_id.0), err)]
     pub async fn remove_member(&mut self, member_id: MemberId) -> Result<(), CoreError> {
         self.repo.remove(member_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(member_id = %command.member_id.0, role_id = %command.role_id.0), err)]
     pub async fn assign_role(&mut self, command: AssignRoleCommand) -> Result<(), CoreError> {
         self.repo.assign_role(command.member_id, command.role_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(member_id = %member_id.0), err)]
     pub async fn list_role_ids(
         &mut self,
         member_id: MemberId,

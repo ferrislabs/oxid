@@ -31,6 +31,7 @@ where
         Self { repo }
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %command.organization_id.0, role.name = %command.name), err)]
     pub async fn create_role(&mut self, command: CreateRoleCommand) -> Result<Role, CoreError> {
         let now = Utc::now();
         let role = Role {
@@ -45,6 +46,7 @@ where
         self.repo.insert(&role).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
     pub async fn list_roles(
         &mut self,
         organization_id: OrganizationId,
@@ -52,6 +54,7 @@ where
         self.repo.list_by_organization(organization_id).await
     }
 
+    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
     pub async fn seed_default_roles(
         &mut self,
         organization_id: OrganizationId,
