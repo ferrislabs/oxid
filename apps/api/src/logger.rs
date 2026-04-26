@@ -8,6 +8,7 @@ use opentelemetry_sdk::{
     metrics::SdkMeterProvider,
     trace::{RandomIdGenerator, SdkTracerProvider},
 };
+use tracing::info;
 use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
@@ -74,6 +75,11 @@ pub fn init_tracing_and_logging(
             .map_err(|_| ApiError::Internal)?;
 
         let meter_provider = SdkMeterProvider::builder()
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(service_name.to_string())
+                    .build(),
+            )
             .with_periodic_exporter(metric_exporter)
             .build();
 
@@ -101,10 +107,26 @@ pub fn init_tracing_and_logging(
             .init();
 
         std::mem::forget(logger_provider);
+
+        info!(
+            service = service_name,
+            otlp_endpoint = %otlp_endpoint,
+            metrics_endpoint = %metrics_endpoints,
+            log_filter = %log_args.filter,
+            json = log_args.json,
+            "observability enabled: exporting traces, metrics and logs via OTLP/gRPC"
+        );
     } else {
         let subscriber = Registry::default().with(fmt_layer);
 
         subscriber.init();
+
+        info!(
+            service = service_name,
+            log_filter = %log_args.filter,
+            json = log_args.json,
+            "observability disabled: set ACTIVE_OBSERVABILITY=true with OTLP_ENDPOINT and METRICS_ENDPOINT to enable OTLP export"
+        );
     }
 
     Ok(())

@@ -29,6 +29,14 @@ pub struct ServerArgs {
         long_help = "The port to run the application on"
     )]
     pub port: u16,
+    #[arg(
+        long = "server-internal-port",
+        env = "SERVER_INTERNAL_PORT",
+        name = "SERVER_INTERNAL_PORT",
+        default_value_t = 3457,
+        long_help = "The port to run the internal application on (health, metrics, ...)"
+    )]
+    pub internal_port: u16,
     #[command(flatten)]
     pub tls: Option<ServerTlsArgs>,
 }
@@ -60,6 +68,7 @@ impl Default for ServerArgs {
             allowed_origins: vec![],
             host: "0.0.0.0".to_string(),
             port: 3333,
+            internal_port: 3334,
             tls: None,
         }
     }
@@ -81,6 +90,7 @@ mod tests {
         let args = ServerArgs::default();
         assert_eq!(args.host, "0.0.0.0");
         assert_eq!(args.port, 3333);
+        assert_eq!(args.internal_port, 3334);
         assert!(args.allowed_origins.is_empty());
         assert!(args.tls.is_none());
     }
