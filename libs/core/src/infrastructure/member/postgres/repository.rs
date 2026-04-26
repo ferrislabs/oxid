@@ -66,11 +66,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "insert", db.table = "member_roles"), err)]
-    async fn assign_role(
-        &mut self,
-        member_id: MemberId,
-        role_id: RoleId,
-    ) -> Result<(), CoreError> {
+    async fn assign_role(&mut self, member_id: MemberId, role_id: RoleId) -> Result<(), CoreError> {
         sqlx::query!(
             r#"
             INSERT INTO member_roles (id, member_id, role_id)
@@ -90,19 +86,43 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organization_members"), err)]
     async fn find_by_org_and_user(
         &mut self,
-        _organization_id: OrganizationId,
-        _user_id: UserId,
+        organization_id: OrganizationId,
+        user_id: UserId,
     ) -> Result<Option<Member>, CoreError> {
-        Err(CoreError::Internal(
-            "PgMemberRepository::find_by_org_and_user not implemented (M2)".into(),
-        ))
+        let row = sqlx::query_as!(
+            MemberRow,
+            r#"
+            SELECT id, organization_id, user_id, joined_at
+            FROM organization_members
+            WHERE organization_id = $1 AND user_id = $2
+            "#,
+            organization_id.0,
+            user_id.0,
+        )
+        .fetch_optional(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "delete", db.table = "organization_members"), err)]
-    async fn remove(&mut self, _member_id: MemberId) -> Result<(), CoreError> {
-        Err(CoreError::Internal(
-            "PgMemberRepository::remove not implemented (M2)".into(),
-        ))
+    async fn remove(&mut self, member_id: MemberId) -> Result<(), CoreError> {
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM organization_members
+            WHERE id = $1
+            "#,
+            member_id.0,
+        )
+        .execute(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        if result.rows_affected() == 0 {
+            return Err(CoreError::NotFound);
+        }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "member_roles"), err)]

@@ -26,14 +26,15 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         let row = sqlx::query_as!(
             OrganizationRow,
             r#"
-            INSERT INTO organizations (id, name, slug, owner_id, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, name, slug, owner_id, created_at, updated_at
+            INSERT INTO organizations (id, name, slug, owner_id, deleted_at, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, name, slug, owner_id, deleted_at, created_at, updated_at
             "#,
             organization.id.0,
             organization.name,
             organization.slug,
             organization.owner_id.0,
+            organization.deleted_at,
             organization.created_at,
             organization.updated_at,
         )
@@ -45,44 +46,105 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn find_by_id(
-        &mut self,
-        _id: OrganizationId,
-    ) -> Result<Option<Organization>, CoreError> {
-        Err(CoreError::Internal(
-            "PgOrganizationRepository::find_by_id not implemented (M2)".into(),
-        ))
+    async fn find_by_id(&mut self, id: OrganizationId) -> Result<Option<Organization>, CoreError> {
+        let row = sqlx::query_as!(
+            OrganizationRow,
+            r#"
+            SELECT id, name, slug, owner_id, deleted_at, created_at, updated_at
+            FROM organizations
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+            id.0,
+        )
+        .fetch_optional(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn find_by_slug(&mut self, _slug: &str) -> Result<Option<Organization>, CoreError> {
-        Err(CoreError::Internal(
-            "PgOrganizationRepository::find_by_slug not implemented (M2)".into(),
-        ))
+    async fn find_by_slug(&mut self, slug: &str) -> Result<Option<Organization>, CoreError> {
+        let row = sqlx::query_as!(
+            OrganizationRow,
+            r#"
+            SELECT id, name, slug, owner_id, deleted_at, created_at, updated_at
+            FROM organizations
+            WHERE slug = $1 AND deleted_at IS NULL
+            "#,
+            slug,
+        )
+        .fetch_optional(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn list_for_user(&mut self, _user_id: UserId) -> Result<Vec<Organization>, CoreError> {
-        Err(CoreError::Internal(
-            "PgOrganizationRepository::list_for_user not implemented (M2)".into(),
-        ))
+    async fn list_for_user(&mut self, user_id: UserId) -> Result<Vec<Organization>, CoreError> {
+        let rows = sqlx::query_as!(
+            OrganizationRow,
+            r#"
+            SELECT o.id, o.name, o.slug, o.owner_id, o.deleted_at, o.created_at, o.updated_at
+            FROM organizations o
+            INNER JOIN organization_members m ON m.organization_id = o.id
+            WHERE m.user_id = $1 AND o.deleted_at IS NULL
+            ORDER BY o.created_at ASC
+            "#,
+            user_id.0,
+        )
+        .fetch_all(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     #[tracing::instrument(skip(self, _organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
-    async fn update(&mut self, _organization: &Organization) -> Result<Organization, CoreError> {
-        Err(CoreError::Internal(
-            "PgOrganizationRepository::update not implemented (M2)".into(),
-        ))
+    async fn update(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
+        let row = sqlx::query_as!(
+            OrganizationRow,
+            r#"
+            UPDATE organizations
+            SET name = $2, slug = $3, updated_at = $4
+            WHERE id = $1 AND deleted_at IS NULL
+            RETURNING id, name, slug, owner_id, deleted_at, created_at, updated_at
+            "#,
+            organization.id.0,
+            organization.name,
+            organization.slug,
+            organization.updated_at,
+        )
+        .fetch_optional(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        row.map(Into::into).ok_or(CoreError::NotFound)
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
     async fn soft_delete(
         &mut self,
-        _id: OrganizationId,
-        _deleted_at: DateTime<Utc>,
+        id: OrganizationId,
+        deleted_at: DateTime<Utc>,
     ) -> Result<(), CoreError> {
-        Err(CoreError::Internal(
-            "PgOrganizationRepository::soft_delete not implemented (M2)".into(),
-        ))
+        let result = sqlx::query!(
+            r#"
+            UPDATE organizations
+            SET deleted_at = $2, updated_at = $2
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+            id.0,
+            deleted_at,
+        )
+        .execute(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        if result.rows_affected() == 0 {
+            return Err(CoreError::NotFound);
+        }
+        Ok(())
     }
 }
