@@ -1,39 +1,39 @@
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
-import { FloatingActionBar } from "#/components/floating-action-bar";
-import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
+import { Link } from '@tanstack/react-router'
+import { ArrowLeft } from 'lucide-react'
+import { FloatingActionBar } from '#/components/floating-action-bar'
+import { Input } from '#/components/ui/input'
+import { Label } from '#/components/ui/label'
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/ui/select";
+} from '#/components/ui/select'
 import {
 	CATEGORY_LABELS,
 	type Customer,
 	type CustomerCategory,
-} from "#/pages/customers/types";
+} from '#/pages/customers/types'
 
 const AVATAR_COLOR: Record<CustomerCategory, string> = {
-	artisan: "bg-amber-500",
-	sme: "bg-blue-500",
-	individual: "bg-emerald-500",
-};
+	artisan: 'bg-amber-500',
+	sme: 'bg-blue-500',
+	individual: 'bg-emerald-500',
+}
 
-const CATEGORIES: CustomerCategory[] = ["artisan", "sme", "individual"];
+const CATEGORIES: CustomerCategory[] = ['artisan', 'sme', 'individual']
 
 interface CustomerEditUIProps {
-	customer: Customer;
-	form: Customer;
-	isDirty: boolean;
-	changedKeys: (keyof Customer)[];
-	isSaving: boolean;
-	onChange: (patch: Partial<Customer>) => void;
-	onAddressChange: (patch: Partial<Customer["address"]>) => void;
-	onReset: () => void;
-	onSave: () => void;
+	customer: Customer
+	form: Customer
+	isDirty: boolean
+	changedKeys: (keyof Customer)[]
+	isSaving: boolean
+	onChange: (patch: Partial<Customer>) => void
+	onAddressChange: (patch: Partial<Customer['address']>) => void
+	onReset: () => void
+	onSave: () => void
 }
 
 export function CustomerEditUI({
@@ -69,7 +69,7 @@ export function CustomerEditUI({
 				</div>
 				<div className="min-w-0">
 					<h1 className="truncate text-2xl font-bold tracking-tight md:text-[28px]">
-						{form.name || "Nouveau client"}
+						{form.name || 'Nouveau client'}
 					</h1>
 					<p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
 						id: {customer.id}
@@ -88,19 +88,19 @@ export function CustomerEditUI({
 						name="name"
 						value={form.name}
 						onChange={(v) => onChange({ name: v })}
-						changed={changedKeys.includes("name")}
+						changed={changedKeys.includes('name')}
 					/>
 					<Field
 						label="Contact"
 						name="contact_name"
 						value={form.contact_name}
 						onChange={(v) => onChange({ contact_name: v })}
-						changed={changedKeys.includes("contact_name")}
+						changed={changedKeys.includes('contact_name')}
 					/>
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="category">
 							Catégorie
-							{changedKeys.includes("category") ? <Dot /> : null}
+							{changedKeys.includes('category') ? <Dot /> : null}
 						</Label>
 						<Select
 							value={form.category}
@@ -129,14 +129,14 @@ export function CustomerEditUI({
 						type="email"
 						value={form.email}
 						onChange={(v) => onChange({ email: v })}
-						changed={changedKeys.includes("email")}
+						changed={changedKeys.includes('email')}
 					/>
 					<Field
 						label="Téléphone"
 						name="phone"
 						value={form.phone}
 						onChange={(v) => onChange({ phone: v })}
-						changed={changedKeys.includes("phone")}
+						changed={changedKeys.includes('phone')}
 					/>
 				</Section>
 
@@ -151,21 +151,21 @@ export function CustomerEditUI({
 							name="street"
 							value={form.address.street}
 							onChange={(v) => onAddressChange({ street: v })}
-							changed={changedKeys.includes("address")}
+							changed={changedKeys.includes('address')}
 						/>
 						<Field
 							label="Ville"
 							name="city"
 							value={form.address.city}
 							onChange={(v) => onAddressChange({ city: v })}
-							changed={changedKeys.includes("address")}
+							changed={changedKeys.includes('address')}
 						/>
 						<Field
 							label="Code postal"
 							name="zip"
 							value={form.address.zip}
 							onChange={(v) => onAddressChange({ zip: v })}
-							changed={changedKeys.includes("address")}
+							changed={changedKeys.includes('address')}
 						/>
 					</div>
 				</Section>
@@ -175,7 +175,7 @@ export function CustomerEditUI({
 				show={isDirty}
 				message={
 					changedKeys.length === 1
-						? "1 modification non enregistrée"
+						? '1 modification non enregistrée'
 						: `${changedKeys.length} modifications non enregistrées`
 				}
 				confirmLabel="Enregistrer"
@@ -185,20 +185,20 @@ export function CustomerEditUI({
 				isLoading={isSaving}
 			/>
 		</div>
-	);
+	)
 }
 
 interface SectionProps {
-	title: string;
-	description?: string;
-	className?: string;
-	children: React.ReactNode;
+	title: string
+	description?: string
+	className?: string
+	children: React.ReactNode
 }
 
 function Section({
 	title,
 	description,
-	className = "",
+	className = '',
 	children,
 }: SectionProps) {
 	return (
@@ -211,16 +211,16 @@ function Section({
 			</div>
 			<div className="flex flex-col gap-4 p-5">{children}</div>
 		</section>
-	);
+	)
 }
 
 interface FieldProps {
-	label: string;
-	name: string;
-	value: string;
-	onChange: (v: string) => void;
-	type?: string;
-	changed?: boolean;
+	label: string
+	name: string
+	value: string
+	onChange: (v: string) => void
+	type?: string
+	changed?: boolean
 }
 
 function Field({
@@ -228,7 +228,7 @@ function Field({
 	name,
 	value,
 	onChange,
-	type = "text",
+	type = 'text',
 	changed,
 }: FieldProps) {
 	return (
@@ -246,7 +246,7 @@ function Field({
 				className="rounded-xl"
 			/>
 		</div>
-	);
+	)
 }
 
 function Dot() {
@@ -256,5 +256,5 @@ function Dot() {
 			aria-label="modifié"
 			className="ml-1.5 inline-block size-1.5 rounded-full bg-orange-500 align-middle"
 		/>
-	);
+	)
 }

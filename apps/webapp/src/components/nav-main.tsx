@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import type { LucideIcon } from "lucide-react";
+import { Link } from '@tanstack/react-router'
+import type { LucideIcon } from 'lucide-react'
 
 import {
 	SidebarGroup,
@@ -7,20 +7,20 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-} from "#/components/ui/sidebar";
+} from '#/components/ui/sidebar'
 
 export interface NavItem {
-	title: string;
-	to: string;
-	icon?: LucideIcon;
-	exact?: boolean;
-	disabled?: boolean;
-	badge?: string | number;
+	title: string
+	to: string
+	icon?: LucideIcon
+	exact?: boolean
+	disabled?: boolean
+	badge?: string | number
 }
 
 interface NavMainProps {
-	label?: string;
-	items: NavItem[];
+	label?: string
+	items: NavItem[]
 }
 
 export function NavMain({ label, items }: NavMainProps) {
@@ -50,7 +50,7 @@ export function NavMain({ label, items }: NavMainProps) {
 								<Link
 									to={item.to}
 									activeOptions={item.exact ? { exact: true } : undefined}
-									activeProps={{ "data-active": "true" }}
+									activeProps={{ 'data-active': 'true' }}
 									className="rounded-lg data-[active=true]:bg-orange-50 data-[active=true]:font-semibold data-[active=true]:text-orange-600 data-[active=true]:[&_svg]:text-orange-600 dark:data-[active=true]:bg-orange-500/10 dark:data-[active=true]:text-orange-400"
 								>
 									{item.icon ? <item.icon /> : null}
@@ -67,5 +67,5 @@ export function NavMain({ label, items }: NavMainProps) {
 				))}
 			</SidebarMenu>
 		</SidebarGroup>
-	);
+	)
 }

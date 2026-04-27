@@ -1,25 +1,25 @@
-import { Loader2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import type React from "react";
-import { Button } from "#/components/ui/button";
+import { Loader2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import type React from 'react'
+import { Button } from '#/components/ui/button'
 
 export interface FloatingActionBarProps {
-	show: boolean;
-	message?: React.ReactNode;
-	confirmLabel?: string;
-	cancelLabel?: string;
-	onConfirm?: () => void;
-	onCancel?: () => void;
-	isLoading?: boolean;
-	disabled?: boolean;
-	children?: React.ReactNode;
+	show: boolean
+	message?: React.ReactNode
+	confirmLabel?: string
+	cancelLabel?: string
+	onConfirm?: () => void
+	onCancel?: () => void
+	isLoading?: boolean
+	disabled?: boolean
+	children?: React.ReactNode
 }
 
 export function FloatingActionBar({
 	show,
-	message = "Vous avez des modifications non enregistrées",
-	confirmLabel = "Enregistrer",
-	cancelLabel = "Annuler",
+	message = 'Vous avez des modifications non enregistrées',
+	confirmLabel = 'Enregistrer',
+	cancelLabel = 'Annuler',
 	onConfirm,
 	onCancel,
 	isLoading = false,
@@ -35,7 +35,7 @@ export function FloatingActionBar({
 					animate={{ y: 0, opacity: 1 }}
 					exit={{ y: 96, opacity: 0 }}
 					transition={{
-						type: "spring",
+						type: 'spring',
 						stiffness: 400,
 						damping: 32,
 						mass: 0.8,
@@ -85,5 +85,5 @@ export function FloatingActionBar({
 				</motion.div>
 			) : null}
 		</AnimatePresence>
-	);
+	)
 }

@@ -14,6 +14,7 @@ pub struct CreateOrganizationRequest {
 #[utoipa::path(
     post,
     path = "/api/v1/organizations",
+    operation_id = "createOrganization",
     tag = super::TAG,
     request_body = CreateOrganizationRequest,
     responses(
