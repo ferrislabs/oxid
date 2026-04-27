@@ -64,24 +64,6 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn find_by_slug(&mut self, slug: &str) -> Result<Option<Organization>, CoreError> {
-        let row = sqlx::query_as!(
-            OrganizationRow,
-            r#"
-            SELECT id, name, slug, owner_id, deleted_at, created_at, updated_at
-            FROM organizations
-            WHERE slug = $1 AND deleted_at IS NULL
-            "#,
-            slug,
-        )
-        .fetch_optional(&mut **self.tx)
-        .await
-        .map_err(map_sqlx_error)?;
-
-        Ok(row.map(Into::into))
-    }
-
-    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn list_for_user(&mut self, user_id: UserId) -> Result<Vec<Organization>, CoreError> {
         let rows = sqlx::query_as!(
             OrganizationRow,
@@ -101,7 +83,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(skip(self, _organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
+    #[tracing::instrument(skip(self, organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
     async fn update(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
         let row = sqlx::query_as!(
             OrganizationRow,
