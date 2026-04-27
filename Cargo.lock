@@ -93,20 +93,16 @@ name = "api"
 version = "0.1.0"
 dependencies = [
  "args",
- "auth",
  "axum",
- "axum-extra",
  "clap",
- "common",
  "dotenvy",
+ "handlers",
+ "handlers-organization",
  "http 1.4.0",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
- "oxid-core",
- "serde",
- "serde_json",
  "server",
  "thiserror 2.0.18",
  "tokio",
@@ -1244,6 +1240,37 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "handlers"
+version = "0.1.0"
+dependencies = [
+ "args",
+ "auth",
+ "axum",
+ "common",
+ "http 1.4.0",
+ "oxid-core",
+ "serde",
+ "serde_json",
+ "server",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "handlers-organization"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum-extra",
+ "chrono",
+ "handlers",
+ "http 1.4.0",
+ "oxid-core",
+ "serde",
+ "utoipa",
 ]
 
 [[package]]

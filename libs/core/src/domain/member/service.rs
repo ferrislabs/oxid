@@ -55,7 +55,9 @@ where
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<Option<Member>, CoreError> {
-        self.repo.find_by_org_and_user(organization_id, user_id).await
+        self.repo
+            .find_by_org_and_user(organization_id, user_id)
+            .await
     }
 
     #[tracing::instrument(skip(self), fields(member_id = %member_id.0), err)]
@@ -65,14 +67,13 @@ where
 
     #[tracing::instrument(skip(self), fields(member_id = %command.member_id.0, role_id = %command.role_id.0), err)]
     pub async fn assign_role(&mut self, command: AssignRoleCommand) -> Result<(), CoreError> {
-        self.repo.assign_role(command.member_id, command.role_id).await
+        self.repo
+            .assign_role(command.member_id, command.role_id)
+            .await
     }
 
     #[tracing::instrument(skip(self), fields(member_id = %member_id.0), err)]
-    pub async fn list_role_ids(
-        &mut self,
-        member_id: MemberId,
-    ) -> Result<Vec<RoleId>, CoreError> {
+    pub async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
         self.repo.list_role_ids(member_id).await
     }
 }

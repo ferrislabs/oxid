@@ -1,25 +1,18 @@
-pub mod auth;
-pub mod errors;
-pub mod handlers;
 pub mod internal_router;
 pub mod logger;
 pub mod openapi;
-pub mod response;
 pub mod router;
-pub mod state;
 
 use std::{error::Error, sync::Arc};
 
 use args::Args;
 use clap::Parser;
 use dotenvy::dotenv;
+use handlers::state;
 use server::{get_addr, run_server};
 use tracing::info;
 
-use crate::{
-    internal_router::internal_router, logger::init_tracing_and_logging, router::router,
-    state::state,
-};
+use crate::{internal_router::internal_router, logger::init_tracing_and_logging, router::router};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

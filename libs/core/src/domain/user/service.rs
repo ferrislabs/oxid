@@ -1,7 +1,9 @@
 use chrono::Utc;
 use common::{CoreError, generate_uuid_v7};
 
-use crate::{User, UserId, domain::user::commands::CreateUserCommand, domain::user::ports::UserRepository};
+use crate::{
+    User, UserId, domain::user::commands::CreateUserCommand, domain::user::ports::UserRepository,
+};
 
 pub struct UserService<U>
 where

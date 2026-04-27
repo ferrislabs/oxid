@@ -79,10 +79,7 @@ where
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
-    pub async fn soft_delete_organization(
-        &mut self,
-        id: OrganizationId,
-    ) -> Result<(), CoreError> {
+    pub async fn soft_delete_organization(&mut self, id: OrganizationId) -> Result<(), CoreError> {
         self.repo.find_by_id(id).await?.ok_or(CoreError::NotFound)?;
         self.repo.soft_delete(id, Utc::now()).await
     }

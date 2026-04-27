@@ -26,14 +26,10 @@ pub async fn auth_middleware(
         .await
         .map_err(|_| MiddlewareError::InvalidAuthHeader)?;
 
-    let identity = state
-        .auth
-        .get_identity(token.as_str())
-        .await
-        .map_err(|e| {
-            error!("Auth middleware: failed to identify user {:?}", e);
-            MiddlewareError::AuthenticationFailed(e.to_string())
-        })?;
+    let identity = state.auth.get_identity(token.as_str()).await.map_err(|e| {
+        error!("Auth middleware: failed to identify user {:?}", e);
+        MiddlewareError::AuthenticationFailed(e.to_string())
+    })?;
 
     req.extensions_mut().insert(identity);
 

@@ -97,12 +97,9 @@ mod tests {
 
     #[test]
     fn parse_host_and_port() {
-        let cmd = Cmd::try_parse_from([
-            "cmd",
-            "--server-host", "127.0.0.1",
-            "--server-port", "8080",
-        ])
-        .unwrap();
+        let cmd =
+            Cmd::try_parse_from(["cmd", "--server-host", "127.0.0.1", "--server-port", "8080"])
+                .unwrap();
         assert_eq!(cmd.server.host, "127.0.0.1");
         assert_eq!(cmd.server.port, 8080);
     }
@@ -125,8 +122,10 @@ mod tests {
     fn parse_allowed_origins_repeated_flag() {
         let cmd = Cmd::try_parse_from([
             "cmd",
-            "--allowed-origins", "https://a.example.com",
-            "--allowed-origins", "https://b.example.com",
+            "--allowed-origins",
+            "https://a.example.com",
+            "--allowed-origins",
+            "https://b.example.com",
         ])
         .unwrap();
         assert_eq!(cmd.server.allowed_origins.len(), 2);
@@ -136,8 +135,10 @@ mod tests {
     fn parse_tls_args() {
         let cmd = Cmd::try_parse_from([
             "cmd",
-            "--server-tls-cert", "/etc/ssl/cert.pem",
-            "--server-tls-key", "/etc/ssl/key.pem",
+            "--server-tls-cert",
+            "/etc/ssl/cert.pem",
+            "--server-tls-key",
+            "/etc/ssl/key.pem",
         ])
         .unwrap();
         let tls = cmd.server.tls.unwrap();

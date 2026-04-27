@@ -11,10 +11,8 @@ use crate::{
 
 #[cfg_attr(test, mockall::automock)]
 pub trait MemberRepository: Send {
-    fn insert(
-        &mut self,
-        member: &Member,
-    ) -> impl Future<Output = Result<Member, CoreError>> + Send;
+    fn insert(&mut self, member: &Member)
+    -> impl Future<Output = Result<Member, CoreError>> + Send;
 
     fn list_by_organization(
         &mut self,
@@ -27,10 +25,8 @@ pub trait MemberRepository: Send {
         user_id: UserId,
     ) -> impl Future<Output = Result<Option<Member>, CoreError>> + Send;
 
-    fn remove(
-        &mut self,
-        member_id: MemberId,
-    ) -> impl Future<Output = Result<(), CoreError>> + Send;
+    fn remove(&mut self, member_id: MemberId)
+    -> impl Future<Output = Result<(), CoreError>> + Send;
 
     fn assign_role(
         &mut self,

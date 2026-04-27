@@ -14,7 +14,7 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-use crate::errors::ApiError;
+use handlers::ApiError;
 
 pub fn init_tracing_and_logging(
     log_args: &LogArgs,

@@ -45,10 +45,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn find_by_id(
-        &mut self,
-        _id: OrganizationId,
-    ) -> Result<Option<Organization>, CoreError> {
+    async fn find_by_id(&mut self, _id: OrganizationId) -> Result<Option<Organization>, CoreError> {
         Err(CoreError::Internal(
             "PgOrganizationRepository::find_by_id not implemented (M2)".into(),
         ))
