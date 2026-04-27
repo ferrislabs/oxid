@@ -7,6 +7,7 @@ use crate::{paths::OrganizationPath, response::OrganizationResponse};
 #[utoipa::path(
     get,
     path = "/api/v1/organizations/{organization_id}",
+    operation_id = "getOrganization",
     tag = super::TAG,
     params(
         ("organization_id" = OrganizationId, Path, description = "Organization identifier"),

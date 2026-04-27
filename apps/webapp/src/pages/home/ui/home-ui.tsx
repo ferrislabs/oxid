@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link } from '@tanstack/react-router'
 import {
 	ArrowRight,
 	FileText,
@@ -7,17 +7,17 @@ import {
 	Receipt,
 	TrendingUp,
 	Users,
-} from "lucide-react";
-import { Button } from "#/components/ui/button";
+} from 'lucide-react'
+import { Button } from '#/components/ui/button'
 
 interface HomeUIProps {
-	userName?: string;
+	userName?: string
 	stats: {
-		customers: number;
-		inventory: number;
-		invoices: number;
-		revenueMonth: number;
-	};
+		customers: number
+		inventory: number
+		invoices: number
+		revenueMonth: number
+	}
 }
 
 export function HomeUI({ userName, stats }: HomeUIProps) {
@@ -26,7 +26,7 @@ export function HomeUI({ userName, stats }: HomeUIProps) {
 			<header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 				<div>
 					<h1 className="text-2xl font-bold tracking-tight md:text-[28px]">
-						{userName ? `Bonjour, ${userName}` : "Tableau de bord"}
+						{userName ? `Bonjour, ${userName}` : 'Tableau de bord'}
 					</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
 						Voici un résumé de votre activité. Gérez vos clients, devis et
@@ -67,7 +67,7 @@ export function HomeUI({ userName, stats }: HomeUIProps) {
 					/>
 					<StatCard
 						label="CA du mois"
-						value={`${stats.revenueMonth.toLocaleString("fr-FR")} €`}
+						value={`${stats.revenueMonth.toLocaleString('fr-FR')} €`}
 						hint="Revenus générés ce mois"
 						icon={<TrendingUp className="size-4" />}
 					/>
@@ -144,14 +144,14 @@ export function HomeUI({ userName, stats }: HomeUIProps) {
 				</div>
 			</section>
 		</div>
-	);
+	)
 }
 
 interface StatCardProps {
-	label: string;
-	value: string;
-	hint: string;
-	icon: React.ReactNode;
+	label: string
+	value: string
+	hint: string
+	icon: React.ReactNode
 }
 
 function StatCard({ label, value, hint, icon }: StatCardProps) {
@@ -166,17 +166,17 @@ function StatCard({ label, value, hint, icon }: StatCardProps) {
 			<p className="text-4xl font-bold tracking-tight">{value}</p>
 			<p className="text-xs text-muted-foreground">{hint}</p>
 		</div>
-	);
+	)
 }
 
 interface ActivityRowProps {
-	letter: string;
-	color: string;
-	title: string;
-	badge: string;
-	badgeColor: string;
-	subtitle: string;
-	meta: string;
+	letter: string
+	color: string
+	title: string
+	badge: string
+	badgeColor: string
+	subtitle: string
+	meta: string
 }
 
 function ActivityRow({
@@ -208,14 +208,14 @@ function ActivityRow({
 			</div>
 			<span className="text-xs text-muted-foreground">{meta}</span>
 		</li>
-	);
+	)
 }
 
 interface ShortcutProps {
-	to: string;
-	icon: React.ReactNode;
-	label: string;
-	disabled?: boolean;
+	to: string
+	icon: React.ReactNode
+	label: string
+	disabled?: boolean
 }
 
 function Shortcut({ to, icon, label, disabled }: ShortcutProps) {
@@ -228,7 +228,7 @@ function Shortcut({ to, icon, label, disabled }: ShortcutProps) {
 					soon
 				</span>
 			</div>
-		);
+		)
 	}
 	return (
 		<Link
@@ -239,5 +239,5 @@ function Shortcut({ to, icon, label, disabled }: ShortcutProps) {
 			<span className="flex-1">{label}</span>
 			<ArrowRight className="size-4 opacity-60" />
 		</Link>
-	);
+	)
 }

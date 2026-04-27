@@ -56,6 +56,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^28.1.0",
+    "typed-openapi": "^2.2.4",
     "typescript": "^5.7.2",
     "vite": "^8.0.0",
     "vitest": "^3.0.5"

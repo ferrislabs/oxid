@@ -1,4 +1,4 @@
-import { HomeUI } from "#/pages/home/ui/home-ui";
+import { HomeUI } from '#/pages/home/ui/home-ui'
 
 export function HomeFeature() {
 	const stats = {
@@ -6,7 +6,7 @@ export function HomeFeature() {
 		inventory: 0,
 		invoices: 0,
 		revenueMonth: 0,
-	};
+	}
 
-	return <HomeUI userName="Nathael" stats={stats} />;
+	return <HomeUI userName="Nathael" stats={stats} />
 }

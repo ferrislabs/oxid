@@ -1,16 +1,16 @@
-import { WebStorageStateStore } from "oidc-client-ts";
-import type { AuthProviderProps } from "react-oidc-context";
-import { getOidcConfiguration } from "#/lib/runtime-config";
+import { WebStorageStateStore } from 'oidc-client-ts'
+import type { AuthProviderProps } from 'react-oidc-context'
+import { getOidcConfiguration } from '#/lib/runtime-config'
 
 export function buildOidcProviderProps(): AuthProviderProps | null {
-	if (typeof window === "undefined") return null;
-	const cfg = getOidcConfiguration();
-	if (!cfg) return null;
+	if (typeof window === 'undefined') return null
+	const cfg = getOidcConfiguration()
+	if (!cfg) return null
 
 	const postLogoutRedirectUri =
 		(import.meta.env.VITE_OIDC_POST_LOGOUT_REDIRECT_URI as
 			| string
-			| undefined) ?? `${window.location.origin}/`;
+			| undefined) ?? `${window.location.origin}/`
 
 	return {
 		authority: cfg.authority,
@@ -21,7 +21,7 @@ export function buildOidcProviderProps(): AuthProviderProps | null {
 		monitorSession: cfg.monitor_session,
 		automaticSilentRenew: cfg.automaticSilentRenew ?? true,
 		post_logout_redirect_uri: postLogoutRedirectUri,
-		response_type: "code",
+		response_type: 'code',
 		loadUserInfo: true,
 		userStore: new WebStorageStateStore({ store: window.localStorage }),
 		onSigninCallback:
@@ -31,7 +31,7 @@ export function buildOidcProviderProps(): AuthProviderProps | null {
 					{},
 					document.title,
 					window.location.pathname,
-				);
+				)
 			}),
-	};
+	}
 }

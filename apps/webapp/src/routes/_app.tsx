@@ -1,10 +1,10 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { Bell, LogOut, Search, User } from "lucide-react";
-import { useAuth } from "react-oidc-context";
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { Bell, LogOut, Search, User } from 'lucide-react'
+import { useAuth } from 'react-oidc-context'
 
-import { AppSidebar } from "#/components/app-sidebar";
-import { AuthGate } from "#/components/auth-gate";
-import { Button } from "#/components/ui/button";
+import { AppSidebar } from '#/components/app-sidebar'
+import { AuthGate } from '#/components/auth-gate'
+import { Button } from '#/components/ui/button'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -12,33 +12,33 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
+} from '#/components/ui/dropdown-menu'
 import {
 	SidebarInset,
 	SidebarProvider,
 	SidebarTrigger,
-} from "#/components/ui/sidebar";
+} from '#/components/ui/sidebar'
 
-export const Route = createFileRoute("/_app")({ component: AppLayout });
+export const Route = createFileRoute('/_app')({ component: AppLayout })
 
 function AppLayout() {
 	return (
 		<AuthGate>
 			<AppShell />
 		</AuthGate>
-	);
+	)
 }
 
 function AppShell() {
-	const auth = useAuth();
-	const profile = auth.user?.profile;
+	const auth = useAuth()
+	const profile = auth.user?.profile
 	const displayName =
 		profile?.name ||
 		profile?.preferred_username ||
 		profile?.email ||
-		"Utilisateur";
-	const email = profile?.email ?? "";
-	const initials = getInitials(displayName);
+		'Utilisateur'
+	const email = profile?.email ?? ''
+	const initials = getInitials(displayName)
 
 	return (
 		<SidebarProvider>
@@ -61,7 +61,7 @@ function AppShell() {
 
 					<div className="ml-auto flex items-center gap-2">
 						<span className="hidden items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
-							espace:{" "}
+							espace:{' '}
 							<span className="font-mono text-foreground">production</span>
 						</span>
 						<Button
@@ -102,7 +102,7 @@ function AppShell() {
 								<DropdownMenuItem
 									variant="destructive"
 									onClick={() => {
-										void auth.signoutRedirect();
+										void auth.signoutRedirect()
 									}}
 								>
 									<LogOut />
@@ -117,7 +117,7 @@ function AppShell() {
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
-	);
+	)
 }
 
 function getInitials(name: string): string {
@@ -126,7 +126,7 @@ function getInitials(name: string): string {
 			.split(/\s+/)
 			.filter(Boolean)
 			.slice(0, 2)
-			.map((w) => w[0]?.toUpperCase() ?? "")
-			.join("") || "U"
-	);
+			.map((w) => w[0]?.toUpperCase() ?? '')
+			.join('') || 'U'
+	)
 }

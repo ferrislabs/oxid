@@ -1,49 +1,49 @@
-import { MoreHorizontal, Plus, Search, Trash2, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Button } from "#/components/ui/button";
+import { MoreHorizontal, Plus, Search, Trash2, UserPlus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Button } from '#/components/ui/button'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
+} from '#/components/ui/dropdown-menu'
 import {
 	CATEGORY_LABELS,
 	type Customer,
 	type CustomerCategory,
-} from "#/pages/customers/types";
+} from '#/pages/customers/types'
 
 interface CustomerListUIProps {
-	customers: Customer[];
-	isLoading?: boolean;
-	onAdd?: () => void;
-	onEdit?: (customer: Customer) => void;
-	onDelete?: (customer: Customer) => void;
+	customers: Customer[]
+	isLoading?: boolean
+	onAdd?: () => void
+	onEdit?: (customer: Customer) => void
+	onDelete?: (customer: Customer) => void
 }
 
 const AVATAR_COLOR: Record<CustomerCategory, string> = {
-	artisan: "bg-amber-500",
-	sme: "bg-blue-500",
-	individual: "bg-emerald-500",
-};
+	artisan: 'bg-amber-500',
+	sme: 'bg-blue-500',
+	individual: 'bg-emerald-500',
+}
 
 const BADGE_COLOR: Record<CustomerCategory, string> = {
 	artisan:
-		"bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
-	sme: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+		'bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+	sme: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
 	individual:
-		"bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-};
+		'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+}
 
-type Filter = "all" | CustomerCategory;
+type Filter = 'all' | CustomerCategory
 
 const FILTERS: { id: Filter; label: string }[] = [
-	{ id: "all", label: "Tous" },
-	{ id: "artisan", label: "Artisans" },
-	{ id: "sme", label: "PME" },
-	{ id: "individual", label: "Particuliers" },
-];
+	{ id: 'all', label: 'Tous' },
+	{ id: 'artisan', label: 'Artisans' },
+	{ id: 'sme', label: 'PME' },
+	{ id: 'individual', label: 'Particuliers' },
+]
 
 export function CustomerListUI({
 	customers,
@@ -52,8 +52,8 @@ export function CustomerListUI({
 	onEdit,
 	onDelete,
 }: CustomerListUIProps) {
-	const [search, setSearch] = useState("");
-	const [filter, setFilter] = useState<Filter>("all");
+	const [search, setSearch] = useState('')
+	const [filter, setFilter] = useState<Filter>('all')
 
 	const counts = useMemo(() => {
 		const c = {
@@ -61,24 +61,24 @@ export function CustomerListUI({
 			artisan: 0,
 			sme: 0,
 			individual: 0,
-		};
-		for (const x of customers) c[x.category]++;
-		return c;
-	}, [customers]);
+		}
+		for (const x of customers) c[x.category]++
+		return c
+	}, [customers])
 
 	const visible = useMemo(() => {
-		const q = search.trim().toLowerCase();
+		const q = search.trim().toLowerCase()
 		return customers.filter((c) => {
-			if (filter !== "all" && c.category !== filter) return false;
-			if (!q) return true;
+			if (filter !== 'all' && c.category !== filter) return false
+			if (!q) return true
 			return (
 				c.name.toLowerCase().includes(q) ||
 				c.contact_name.toLowerCase().includes(q) ||
 				c.email.toLowerCase().includes(q) ||
 				c.address.city.toLowerCase().includes(q)
-			);
-		});
-	}, [customers, search, filter]);
+			)
+		})
+	}, [customers, search, filter])
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-8">
@@ -103,7 +103,7 @@ export function CustomerListUI({
 
 			<div className="flex flex-wrap gap-2">
 				{FILTERS.map((f) => {
-					const active = f.id === filter;
+					const active = f.id === filter
 					return (
 						<button
 							type="button"
@@ -111,13 +111,13 @@ export function CustomerListUI({
 							onClick={() => setFilter(f.id)}
 							className={`rounded-xl border px-4 py-1.5 text-sm font-medium transition-colors ${
 								active
-									? "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-300"
-									: "border-border bg-card text-muted-foreground hover:bg-muted"
+									? 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-300'
+									: 'border-border bg-card text-muted-foreground hover:bg-muted'
 							}`}
 						>
 							{f.label}
 						</button>
-					);
+					)
 				})}
 			</div>
 
@@ -174,12 +174,12 @@ export function CustomerListUI({
 						<div>
 							<p className="font-medium">Aucun client trouvé</p>
 							<p className="text-sm text-muted-foreground">
-								{search || filter !== "all"
+								{search || filter !== 'all'
 									? "Essayez d'autres critères"
-									: "Commencez par ajouter votre premier client"}
+									: 'Commencez par ajouter votre premier client'}
 							</p>
 						</div>
-						{!search && filter === "all" && (
+						{!search && filter === 'all' && (
 							<Button onClick={onAdd} variant="outline" className="rounded-xl">
 								<Plus />
 								Ajouter un client
@@ -257,13 +257,13 @@ export function CustomerListUI({
 				)}
 			</section>
 		</div>
-	);
+	)
 }
 
 interface MiniStatProps {
-	label: string;
-	value: number;
-	hint: string;
+	label: string
+	value: number
+	hint: string
 }
 
 function MiniStat({ label, value, hint }: MiniStatProps) {
@@ -273,5 +273,5 @@ function MiniStat({ label, value, hint }: MiniStatProps) {
 			<p className="text-3xl font-bold tracking-tight">{value}</p>
 			<p className="text-xs text-muted-foreground">{hint}</p>
 		</div>
-	);
+	)
 }

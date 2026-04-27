@@ -6,6 +6,7 @@ use crate::{paths::OrganizationsPath, response::OrganizationResponse};
 #[utoipa::path(
     get,
     path = "/api/v1/organizations",
+    operation_id = "listOrganizations",
     tag = super::TAG,
     responses(
         (status = 200, description = "List organizations the caller belongs to", body = [OrganizationResponse]),

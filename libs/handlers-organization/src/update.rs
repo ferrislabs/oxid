@@ -15,6 +15,7 @@ pub struct UpdateOrganizationRequest {
 #[utoipa::path(
     patch,
     path = "/api/v1/organizations/{organization_id}",
+    operation_id = "updateOrganization",
     tag = super::TAG,
     params(
         ("organization_id" = OrganizationId, Path, description = "Organization identifier"),

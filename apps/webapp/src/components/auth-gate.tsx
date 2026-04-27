@@ -1,28 +1,29 @@
-import { Loader2, ShieldAlert } from "lucide-react";
-import { useEffect } from "react";
-import { useAuth } from "react-oidc-context";
-import { Button } from "#/components/ui/button";
-import { getOidcConfiguration } from "#/lib/runtime-config";
+import { Loader2, ShieldAlert } from 'lucide-react'
+import { useEffect } from 'react'
+import { useAuth } from 'react-oidc-context'
+import { AuthTokenSync } from '#/components/auth-token-sync'
+import { Button } from '#/components/ui/button'
+import { getOidcConfiguration } from '#/lib/runtime-config'
 
 interface AuthGateProps {
-	children: React.ReactNode;
+	children: React.ReactNode
 }
 
 export function AuthGate({ children }: AuthGateProps) {
-	const auth = useAuth();
-	const isConfigured = Boolean(getOidcConfiguration());
+	const auth = useAuth()
+	const isConfigured = Boolean(getOidcConfiguration())
 
 	useEffect(() => {
-		if (!isConfigured) return;
+		if (!isConfigured) return
 		if (
 			!auth.isLoading &&
 			!auth.isAuthenticated &&
 			!auth.activeNavigator &&
 			!auth.error
 		) {
-			void auth.signinRedirect();
+			void auth.signinRedirect()
 		}
-	}, [auth, isConfigured]);
+	}, [auth, isConfigured])
 
 	if (!isConfigured) {
 		return (
@@ -31,7 +32,7 @@ export function AuthGate({ children }: AuthGateProps) {
 				title="Authentification non configurée"
 				message="Définissez VITE_OIDC_AUTHORITY (dev) ou issuer_url dans /config.json (prod), ainsi que VITE_OIDC_CLIENT_ID."
 			/>
-		);
+		)
 	}
 
 	if (auth.error) {
@@ -49,17 +50,17 @@ export function AuthGate({ children }: AuthGateProps) {
 					</Button>
 				}
 			/>
-		);
+		)
 	}
 
-	if (auth.isLoading || auth.activeNavigator === "signinSilent") {
+	if (auth.isLoading || auth.activeNavigator === 'signinSilent') {
 		return (
 			<FullscreenMessage
 				icon={<Loader2 className="size-8 animate-spin text-orange-600" />}
 				title="Chargement…"
 				message="Vérification de votre session"
 			/>
-		);
+		)
 	}
 
 	if (!auth.isAuthenticated) {
@@ -69,17 +70,22 @@ export function AuthGate({ children }: AuthGateProps) {
 				title="Redirection vers le fournisseur d'identité…"
 				message="Vous allez être redirigé pour vous connecter"
 			/>
-		);
+		)
 	}
 
-	return <>{children}</>;
+	return (
+		<>
+			<AuthTokenSync />
+			{children}
+		</>
+	)
 }
 
 interface FullscreenMessageProps {
-	icon: React.ReactNode;
-	title: string;
-	message: string;
-	action?: React.ReactNode;
+	icon: React.ReactNode
+	title: string
+	message: string
+	action?: React.ReactNode
 }
 
 function FullscreenMessage({
@@ -99,5 +105,5 @@ function FullscreenMessage({
 			</div>
 			{action}
 		</div>
-	);
+	)
 }
