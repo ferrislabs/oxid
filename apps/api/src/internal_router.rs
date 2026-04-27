@@ -2,7 +2,7 @@ use axum::{Router, extract::Request, routing::get};
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
 
-use crate::errors::ApiError;
+use handlers::ApiError;
 
 pub fn internal_router() -> Result<Router, ApiError> {
     let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request| {

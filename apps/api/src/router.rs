@@ -9,7 +9,10 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{errors::ApiError, openapi::ApiDoc, state::AppState};
+use handlers::{ApiError, AppState};
+use handlers_organization as organization;
+
+use crate::openapi::ApiDoc;
 
 pub fn router(state: AppState) -> Result<Router, ApiError> {
     let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request| {
@@ -59,6 +62,7 @@ pub fn router(state: AppState) -> Result<Router, ApiError> {
         .allow_credentials(true);
 
     let router = Router::new()
+        .merge(organization::router())
         .merge(Scalar::with_url("/scalar", openapi.clone()))
         .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", openapi.clone()))
         .layer(trace_layer)

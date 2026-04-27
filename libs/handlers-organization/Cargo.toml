@@ -1,0 +1,16 @@
+[package]
+name = "handlers-organization"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+handlers = { workspace = true }
+oxid-core = { workspace = true }
+
+axum = { workspace = true }
+axum-extra = { workspace = true }
+http = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+utoipa = { workspace = true }
