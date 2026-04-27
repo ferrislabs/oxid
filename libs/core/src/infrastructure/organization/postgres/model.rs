@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::{UserId, domain::organization::{Organization, OrganizationId}};
+use crate::{
+    UserId,
+    domain::organization::{Organization, OrganizationId},
+};
 
 #[derive(Debug, Clone)]
 pub struct OrganizationRow {

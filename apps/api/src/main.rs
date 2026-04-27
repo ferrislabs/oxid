@@ -12,9 +12,7 @@ use handlers::state;
 use server::{get_addr, run_server};
 use tracing::info;
 
-use crate::{
-    internal_router::internal_router, logger::init_tracing_and_logging, router::router,
-};
+use crate::{internal_router::internal_router, logger::init_tracing_and_logging, router::router};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

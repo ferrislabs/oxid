@@ -165,19 +165,17 @@ mod tests {
         let mut repo = MockRoleRepository::new();
 
         // Three sequential inserts: owner, admin, member.
-        repo.expect_insert()
-            .times(3)
-            .returning(|r| {
-                let cloned = Role {
-                    id: r.id,
-                    organization_id: r.organization_id,
-                    name: r.name.clone(),
-                    permissions: r.permissions,
-                    created_at: r.created_at,
-                    updated_at: r.updated_at,
-                };
-                Box::pin(async move { Ok(cloned) })
-            });
+        repo.expect_insert().times(3).returning(|r| {
+            let cloned = Role {
+                id: r.id,
+                organization_id: r.organization_id,
+                name: r.name.clone(),
+                permissions: r.permissions,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            };
+            Box::pin(async move { Ok(cloned) })
+        });
 
         let mut service = RoleService::new(repo);
         let defaults = service.seed_default_roles(oid).await.unwrap();

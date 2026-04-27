@@ -66,11 +66,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "insert", db.table = "member_roles"), err)]
-    async fn assign_role(
-        &mut self,
-        member_id: MemberId,
-        role_id: RoleId,
-    ) -> Result<(), CoreError> {
+    async fn assign_role(&mut self, member_id: MemberId, role_id: RoleId) -> Result<(), CoreError> {
         sqlx::query!(
             r#"
             INSERT INTO member_roles (id, member_id, role_id)
