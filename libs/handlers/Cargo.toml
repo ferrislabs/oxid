@@ -14,6 +14,7 @@ rate-limit = { workspace = true }
 
 axum = { workspace = true }
 http = { workspace = true }
+itoa = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

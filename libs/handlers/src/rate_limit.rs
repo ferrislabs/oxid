@@ -95,9 +95,9 @@ fn client_ip(req: &Request, fallback: SocketAddr) -> String {
     {
         for part in s.split(';') {
             if let Some(rest) = part.trim().strip_prefix("for=") {
-                let cleaned = rest.trim_matches('"').trim_start_matches('[').to_string();
+                let cleaned = rest.trim_matches('"').trim_start_matches('[');
                 if !cleaned.is_empty() {
-                    return cleaned;
+                    return cleaned.to_string();
                 }
             }
         }
@@ -112,7 +112,8 @@ fn rate_limited_response(decision: &RateLimitDecision) -> Response {
     inject_headers(headers, decision);
     if let Some(retry_after) = decision.retry_after {
         let secs = retry_after.as_secs().max(1);
-        if let Ok(value) = HeaderValue::from_str(&secs.to_string()) {
+        let mut buf = itoa::Buffer::new();
+        if let Ok(value) = HeaderValue::from_str(buf.format(secs)) {
             headers.insert(RETRY_AFTER, value);
         }
     }
@@ -121,10 +122,11 @@ fn rate_limited_response(decision: &RateLimitDecision) -> Response {
 }
 
 fn inject_headers(headers: &mut http::HeaderMap, decision: &RateLimitDecision) {
-    if let Ok(v) = HeaderValue::from_str(&decision.limit.to_string()) {
+    let mut buf = itoa::Buffer::new();
+    if let Ok(v) = HeaderValue::from_str(buf.format(decision.limit)) {
         headers.insert(X_RATELIMIT_LIMIT, v);
     }
-    if let Ok(v) = HeaderValue::from_str(&decision.remaining.to_string()) {
+    if let Ok(v) = HeaderValue::from_str(buf.format(decision.remaining)) {
         headers.insert(X_RATELIMIT_REMAINING, v);
     }
 }

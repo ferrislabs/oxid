@@ -20,15 +20,14 @@ impl Token {
     }
 
     pub fn decode_manual(&self) -> Result<Jwt, AuthError> {
-        let t: Vec<&str> = self.0.split(".").collect();
-
-        if t.len() != 3 {
+        let mut parts = self.0.split('.');
+        let (Some(_header), Some(payload), Some(_signature), None) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
             return Err(AuthError::InvalidToken {
                 message: "JWT must have 3 parts separated by dots".to_string(),
             });
-        }
-
-        let payload = t[1];
+        };
 
         let decoded = general_purpose::URL_SAFE_NO_PAD
             .decode(payload)
