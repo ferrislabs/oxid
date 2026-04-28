@@ -16,8 +16,8 @@ pub struct PgRoleRepository<'tx> {
 }
 
 impl<'tx> PgRoleRepository<'tx> {
-    pub fn new(tx: SharedTx<'tx>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 

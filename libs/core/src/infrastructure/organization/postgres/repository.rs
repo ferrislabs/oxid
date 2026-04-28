@@ -15,8 +15,8 @@ pub struct PgOrganizationRepository<'tx> {
 }
 
 impl<'tx> PgOrganizationRepository<'tx> {
-    pub fn new(tx: SharedTx<'tx>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 

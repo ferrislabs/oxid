@@ -13,7 +13,7 @@ use crate::{
 impl OxidUseCase {
     #[transactional]
     pub async fn create_role(&self, command: CreateRoleCommand) -> Result<Role, CoreError> {
-        let mut service = RoleService::new(PgRoleRepository::new(tx));
+        let mut service = RoleService::new(PgRoleRepository::new(&tx));
         service.create_role(command).await
     }
 
@@ -22,7 +22,7 @@ impl OxidUseCase {
         &self,
         organization_id: OrganizationId,
     ) -> Result<Vec<Role>, CoreError> {
-        let mut service = RoleService::new(PgRoleRepository::new(tx));
+        let mut service = RoleService::new(PgRoleRepository::new(&tx));
         service.list_roles(organization_id).await
     }
 }

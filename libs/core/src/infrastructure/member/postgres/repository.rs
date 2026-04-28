@@ -18,8 +18,8 @@ pub struct PgMemberRepository<'tx> {
 }
 
 impl<'tx> PgMemberRepository<'tx> {
-    pub fn new(tx: SharedTx<'tx>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 
