@@ -21,4 +21,9 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+divan = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[[bench]]
+name = "rate_limit_headers"
+harness = false

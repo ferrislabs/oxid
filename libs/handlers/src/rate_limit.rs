@@ -70,7 +70,8 @@ pub async fn rate_limit_middleware(
     response
 }
 
-fn client_ip(req: &Request, fallback: SocketAddr) -> String {
+#[doc(hidden)]
+pub fn client_ip(req: &Request, fallback: SocketAddr) -> String {
     if let Some(value) = req.headers().get(&X_FORWARDED_FOR)
         && let Ok(s) = value.to_str()
         && let Some(first) = s.split(',').next()
@@ -121,7 +122,8 @@ fn rate_limited_response(decision: &RateLimitDecision) -> Response {
     response
 }
 
-fn inject_headers(headers: &mut http::HeaderMap, decision: &RateLimitDecision) {
+#[doc(hidden)]
+pub fn inject_headers(headers: &mut http::HeaderMap, decision: &RateLimitDecision) {
     let mut buf = itoa::Buffer::new();
     if let Ok(v) = HeaderValue::from_str(buf.format(decision.limit)) {
         headers.insert(X_RATELIMIT_LIMIT, v);
