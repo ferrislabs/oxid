@@ -21,8 +21,8 @@ impl OxidUseCase {
         &self,
         command: CreateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =
@@ -32,8 +32,8 @@ impl OxidUseCase {
 
     #[transactional]
     pub async fn get_organization(&self, id: OrganizationId) -> Result<Organization, CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =
@@ -46,8 +46,8 @@ impl OxidUseCase {
         &self,
         user_id: UserId,
     ) -> Result<Vec<Organization>, CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =
@@ -60,8 +60,8 @@ impl OxidUseCase {
         &self,
         command: UpdateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =
@@ -71,8 +71,8 @@ impl OxidUseCase {
 
     #[transactional]
     pub async fn soft_delete_organization(&self, id: OrganizationId) -> Result<(), CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =
@@ -86,8 +86,8 @@ impl OxidUseCase {
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<(), CoreError> {
-        let organization_repository = PgOrganizationRepository::new(tx);
-        let role_repository = PgRoleRepository::new(tx);
+        let organization_repository = PgOrganizationRepository::new(tx.clone());
+        let role_repository = PgRoleRepository::new(tx.clone());
         let member_repository = PgMemberRepository::new(tx);
 
         let mut service =

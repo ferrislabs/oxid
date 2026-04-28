@@ -1,21 +1,21 @@
 use chrono::{DateTime, Utc};
 use common::CoreError;
-use sqlx::{Postgres, Transaction};
 
 use crate::{
     UserId,
     domain::organization::{Organization, OrganizationId, ports::OrganizationRepository},
     infrastructure::{
-        organization::postgres::model::OrganizationRow, postgres::error::map_sqlx_error,
+        organization::postgres::model::OrganizationRow,
+        postgres::{SharedTx, error::map_sqlx_error},
     },
 };
 
 pub struct PgOrganizationRepository<'tx> {
-    tx: &'tx mut Transaction<'static, Postgres>,
+    tx: SharedTx<'tx>,
 }
 
 impl<'tx> PgOrganizationRepository<'tx> {
-    pub fn new(tx: &'tx mut Transaction<'static, Postgres>) -> Self {
+    pub fn new(tx: SharedTx<'tx>) -> Self {
         Self { tx }
     }
 }
@@ -23,6 +23,7 @@ impl<'tx> PgOrganizationRepository<'tx> {
 impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     #[tracing::instrument(skip(self, organization), fields(db.system = "postgresql", db.operation = "insert", db.table = "organizations", organization.slug = %organization.slug), err)]
     async fn insert(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             OrganizationRow,
             r#"
@@ -38,7 +39,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
             organization.created_at,
             organization.updated_at,
         )
-        .fetch_one(&mut **self.tx)
+        .fetch_one(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -47,6 +48,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn find_by_id(&mut self, id: OrganizationId) -> Result<Option<Organization>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             OrganizationRow,
             r#"
@@ -56,7 +58,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
             "#,
             id.0,
         )
-        .fetch_optional(&mut **self.tx)
+        .fetch_optional(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -65,6 +67,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn list_for_user(&mut self, user_id: UserId) -> Result<Vec<Organization>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let rows = sqlx::query_as!(
             OrganizationRow,
             r#"
@@ -76,7 +79,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
             "#,
             user_id.0,
         )
-        .fetch_all(&mut **self.tx)
+        .fetch_all(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -85,6 +88,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
 
     #[tracing::instrument(skip(self, organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]
     async fn update(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             OrganizationRow,
             r#"
@@ -98,7 +102,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
             organization.slug,
             organization.updated_at,
         )
-        .fetch_optional(&mut **self.tx)
+        .fetch_optional(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -111,6 +115,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         id: OrganizationId,
         deleted_at: DateTime<Utc>,
     ) -> Result<(), CoreError> {
+        let mut tx = self.tx.lock().await;
         let result = sqlx::query!(
             r#"
             UPDATE organizations
@@ -120,7 +125,7 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
             id.0,
             deleted_at,
         )
-        .execute(&mut **self.tx)
+        .execute(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
