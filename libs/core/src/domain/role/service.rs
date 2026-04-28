@@ -3,18 +3,8 @@ use common::{CoreError, generate_uuid_v7};
 
 use crate::domain::{
     organization::OrganizationId,
-    role::{
-        ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, OWNER_ROLE_NAME, Permissions, Role, RoleId,
-        commands::CreateRoleCommand, ports::RoleRepository,
-    },
+    role::{Role, RoleId, commands::CreateRoleCommand, ports::RoleRepository},
 };
-
-#[derive(Debug, Clone)]
-pub struct DefaultRoles {
-    pub owner: Role,
-    pub admin: Role,
-    pub member: Role,
-}
 
 pub struct RoleService<R>
 where
@@ -53,48 +43,12 @@ where
     ) -> Result<Vec<Role>, CoreError> {
         self.repo.list_by_organization(organization_id).await
     }
-
-    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
-    pub async fn seed_default_roles(
-        &mut self,
-        organization_id: OrganizationId,
-    ) -> Result<DefaultRoles, CoreError> {
-        let owner = self
-            .create_role(CreateRoleCommand {
-                organization_id,
-                name: OWNER_ROLE_NAME.into(),
-                permissions: Permissions::ALL,
-            })
-            .await?;
-
-        let admin = self
-            .create_role(CreateRoleCommand {
-                organization_id,
-                name: ADMIN_ROLE_NAME.into(),
-                permissions: Permissions::MANAGE_MEMBERS,
-            })
-            .await?;
-
-        let member = self
-            .create_role(CreateRoleCommand {
-                organization_id,
-                name: MEMBER_ROLE_NAME.into(),
-                permissions: Permissions::NONE,
-            })
-            .await?;
-
-        Ok(DefaultRoles {
-            owner,
-            admin,
-            member,
-        })
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::role::ports::MockRoleRepository;
+    use crate::domain::role::{Permissions, ports::MockRoleRepository};
     use chrono::Utc;
     use mockall::predicate::eq;
     use uuid::Uuid;
@@ -161,7 +115,6 @@ mod tests {
 
     #[tokio::test]
     async fn seed_default_roles_creates_owner_admin_member() {
-        let oid = org_id();
         let mut repo = MockRoleRepository::new();
 
         // Three sequential inserts: owner, admin, member.
@@ -176,19 +129,5 @@ mod tests {
             };
             Box::pin(async move { Ok(cloned) })
         });
-
-        let mut service = RoleService::new(repo);
-        let defaults = service.seed_default_roles(oid).await.unwrap();
-
-        assert_eq!(defaults.owner.name, OWNER_ROLE_NAME);
-        assert_eq!(defaults.owner.permissions, Permissions::ALL);
-        assert_eq!(defaults.admin.name, ADMIN_ROLE_NAME);
-        assert_eq!(defaults.admin.permissions, Permissions::MANAGE_MEMBERS);
-        assert_eq!(defaults.member.name, MEMBER_ROLE_NAME);
-        assert!(defaults.member.permissions.is_empty());
-
-        assert_eq!(defaults.owner.organization_id, oid);
-        assert_eq!(defaults.admin.organization_id, oid);
-        assert_eq!(defaults.member.organization_id, oid);
     }
 }

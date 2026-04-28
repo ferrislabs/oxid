@@ -46,4 +46,21 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
 
         Ok(row.into())
     }
+
+    async fn find_by_email(&mut self, email: &str) -> Result<Option<User>, CoreError> {
+        let row = sqlx::query_as!(
+            UserRow,
+            r#"
+            SELECT id, email, username, display_name, sub, created_at, updated_at
+            FROM users
+            WHERE email = $1
+            "#,
+            email,
+        )
+        .fetch_optional(&mut **self.tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(Into::into))
+    }
 }

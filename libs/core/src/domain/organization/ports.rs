@@ -18,11 +18,6 @@ pub trait OrganizationRepository: Send {
         id: OrganizationId,
     ) -> impl Future<Output = Result<Option<Organization>, CoreError>> + Send;
 
-    fn find_by_slug(
-        &mut self,
-        slug: &str,
-    ) -> impl Future<Output = Result<Option<Organization>, CoreError>> + Send;
-
     fn list_for_user(
         &mut self,
         user_id: UserId,
