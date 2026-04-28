@@ -17,19 +17,29 @@ use crate::{
     },
 };
 
-pub struct OrganizationService<R>
+pub struct OrganizationService<O, R, M>
 where
-    R: OrganizationRepository,
+    O: OrganizationRepository,
+    R: RoleRepository,
+    M: MemberRepository,
 {
-    repo: R,
+    organization_repository: O,
+    role_repository: R,
+    member_repository: M,
 }
 
-impl<R> OrganizationService<R>
+impl<O, R, M> OrganizationService<O, R, M>
 where
-    R: OrganizationRepository,
+    O: OrganizationRepository,
+    R: RoleRepository,
+    M: MemberRepository,
 {
-    pub fn new(repo: R) -> Self {
-        Self { repo }
+    pub fn new(organization_repository: O, role_repository: R, member_repository: M) -> Self {
+        Self {
+            organization_repository,
+            role_repository,
+            member_repository,
+        }
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
@@ -37,7 +47,10 @@ where
         &mut self,
         id: OrganizationId,
     ) -> Result<Organization, CoreError> {
-        self.repo.find_by_id(id).await?.ok_or(CoreError::NotFound)
+        self.organization_repository
+            .find_by_id(id)
+            .await?
+            .ok_or(CoreError::NotFound)
     }
 
     #[tracing::instrument(skip(self), fields(user_id = %user_id.0), err)]
@@ -45,7 +58,7 @@ where
         &mut self,
         user_id: UserId,
     ) -> Result<Vec<Organization>, CoreError> {
-        self.repo.list_for_user(user_id).await
+        self.organization_repository.list_for_user(user_id).await
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %command.id.0, organization.slug = %command.slug), err)]
@@ -54,7 +67,7 @@ where
         command: UpdateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
         let mut organization = self
-            .repo
+            .organization_repository
             .find_by_id(command.id)
             .await?
             .ok_or(CoreError::NotFound)?;
@@ -63,19 +76,27 @@ where
         organization.slug = command.slug;
         organization.updated_at = Utc::now();
 
-        self.repo.update(&organization).await
+        self.organization_repository.update(&organization).await
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
     pub async fn soft_delete_organization(&mut self, id: OrganizationId) -> Result<(), CoreError> {
-        self.repo.find_by_id(id).await?.ok_or(CoreError::NotFound)?;
-        self.repo.soft_delete(id, Utc::now()).await
+        self.organization_repository
+            .find_by_id(id)
+            .await?
+            .ok_or(CoreError::NotFound)?;
+
+        self.organization_repository
+            .soft_delete(id, Utc::now())
+            .await
     }
 }
 
-impl<R> OrganizationService<R>
+impl<O, R, M> OrganizationService<O, R, M>
 where
-    R: OrganizationRepository + RoleRepository + MemberRepository,
+    O: OrganizationRepository,
+    R: RoleRepository,
+    M: MemberRepository,
 {
     #[tracing::instrument(skip(self), fields(organization.slug = %command.slug, owner_id = %command.owner_id.0), err)]
     pub async fn create_organization(
@@ -85,56 +106,66 @@ where
         let now = Utc::now();
         let owner_id = command.owner_id;
 
-        let organization = Organization {
-            id: OrganizationId(generate_uuid_v7()),
-            name: command.name,
-            slug: command.slug,
-            owner_id,
-            deleted_at: None,
-            created_at: now,
-            updated_at: now,
-        };
-        let organization = OrganizationRepository::insert(&mut self.repo, &organization).await?;
+        let organization = self
+            .organization_repository
+            .insert(&Organization {
+                id: OrganizationId(generate_uuid_v7()),
+                name: command.name,
+                slug: command.slug,
+                owner_id,
+                deleted_at: None,
+                created_at: now,
+                updated_at: now,
+            })
+            .await?;
 
-        let owner_role = Role {
-            id: RoleId(generate_uuid_v7()),
-            organization_id: organization.id,
-            name: OWNER_ROLE_NAME.into(),
-            permissions: Permissions::ALL,
-            created_at: now,
-            updated_at: now,
-        };
-        let owner_role = RoleRepository::insert(&mut self.repo, &owner_role).await?;
+        let owner_role = self
+            .role_repository
+            .insert(&Role {
+                id: RoleId(generate_uuid_v7()),
+                organization_id: organization.id,
+                name: OWNER_ROLE_NAME.into(),
+                permissions: Permissions::ALL,
+                created_at: now,
+                updated_at: now,
+            })
+            .await?;
 
-        let admin_role = Role {
-            id: RoleId(generate_uuid_v7()),
-            organization_id: organization.id,
-            name: ADMIN_ROLE_NAME.into(),
-            permissions: Permissions::MANAGE_MEMBERS,
-            created_at: now,
-            updated_at: now,
-        };
-        RoleRepository::insert(&mut self.repo, &admin_role).await?;
+        self.role_repository
+            .insert(&Role {
+                id: RoleId(generate_uuid_v7()),
+                organization_id: organization.id,
+                name: ADMIN_ROLE_NAME.into(),
+                permissions: Permissions::MANAGE_MEMBERS,
+                created_at: now,
+                updated_at: now,
+            })
+            .await?;
 
-        let member_role = Role {
-            id: RoleId(generate_uuid_v7()),
-            organization_id: organization.id,
-            name: MEMBER_ROLE_NAME.into(),
-            permissions: Permissions::NONE,
-            created_at: now,
-            updated_at: now,
-        };
-        RoleRepository::insert(&mut self.repo, &member_role).await?;
+        self.role_repository
+            .insert(&Role {
+                id: RoleId(generate_uuid_v7()),
+                organization_id: organization.id,
+                name: MEMBER_ROLE_NAME.into(),
+                permissions: Permissions::NONE,
+                created_at: now,
+                updated_at: now,
+            })
+            .await?;
 
-        let member = Member {
-            id: MemberId(generate_uuid_v7()),
-            organization_id: organization.id,
-            user_id: owner_id,
-            joined_at: now,
-        };
-        MemberRepository::insert(&mut self.repo, &member).await?;
+        let member = self
+            .member_repository
+            .insert(&Member {
+                id: MemberId(generate_uuid_v7()),
+                organization_id: organization.id,
+                user_id: owner_id,
+                joined_at: now,
+            })
+            .await?;
 
-        MemberRepository::assign_role(&mut self.repo, member.id, owner_role.id).await?;
+        self.member_repository
+            .assign_role(member.id, owner_role.id)
+            .await?;
 
         Ok(organization)
     }
@@ -151,12 +182,13 @@ where
             return self.soft_delete_organization(organization_id).await;
         }
 
-        let member =
-            MemberRepository::find_by_org_and_user(&mut self.repo, organization_id, user_id)
-                .await?
-                .ok_or(CoreError::NotFound)?;
+        let member = self
+            .member_repository
+            .find_by_org_and_user(organization_id, user_id)
+            .await?
+            .ok_or(CoreError::NotFound)?;
 
-        MemberRepository::remove(&mut self.repo, member.id).await
+        self.member_repository.remove(member.id).await
     }
 }
 
@@ -184,13 +216,19 @@ mod tests {
     #[tokio::test]
     async fn get_organization_returns_not_found_when_missing() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
         let err = service.get_organization(id).await.unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
@@ -199,8 +237,13 @@ mod tests {
     #[tokio::test]
     async fn get_organization_returns_entity_when_found() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(move |id| {
@@ -208,7 +251,9 @@ mod tests {
                 Box::pin(async move { Ok(Some(org)) })
             });
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let org = service.get_organization(id).await.unwrap();
 
         assert_eq!(org.id, id);
@@ -217,28 +262,38 @@ mod tests {
     #[tokio::test]
     async fn update_organization_mutates_and_saves() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(move |id| {
                 let org = fixture(id);
                 Box::pin(async move { Ok(Some(org)) })
             });
-        repo.expect_update().times(1).returning(|o| {
-            let cloned = Organization {
-                id: o.id,
-                name: o.name.clone(),
-                slug: o.slug.clone(),
-                owner_id: o.owner_id,
-                deleted_at: o.deleted_at,
-                created_at: o.created_at,
-                updated_at: o.updated_at,
-            };
-            Box::pin(async move { Ok(cloned) })
-        });
+        organization_repository
+            .expect_update()
+            .times(1)
+            .returning(|o| {
+                let cloned = Organization {
+                    id: o.id,
+                    name: o.name.clone(),
+                    slug: o.slug.clone(),
+                    owner_id: o.owner_id,
+                    deleted_at: o.deleted_at,
+                    created_at: o.created_at,
+                    updated_at: o.updated_at,
+                };
+                Box::pin(async move { Ok(cloned) })
+            });
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let updated = service
             .update_organization(UpdateOrganizationCommand {
                 id,
@@ -255,13 +310,20 @@ mod tests {
     #[tokio::test]
     async fn update_organization_returns_not_found_when_missing() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let err = service
             .update_organization(UpdateOrganizationCommand {
                 id,
@@ -277,33 +339,49 @@ mod tests {
     #[tokio::test]
     async fn soft_delete_organization_calls_repo() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(move |id| {
                 let org = fixture(id);
                 Box::pin(async move { Ok(Some(org)) })
             });
-        repo.expect_soft_delete()
+
+        organization_repository
+            .expect_soft_delete()
             .withf(move |i, _| *i == id)
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         service.soft_delete_organization(id).await.unwrap();
     }
 
     #[tokio::test]
     async fn soft_delete_organization_returns_not_found_when_missing() {
         let id = OrganizationId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_find_by_id()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
             .with(eq(id))
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let err = service.soft_delete_organization(id).await.unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
@@ -312,13 +390,20 @@ mod tests {
     #[tokio::test]
     async fn list_organizations_for_user_delegates_to_repo() {
         let user_id = UserId(Uuid::new_v4());
-        let mut repo = MockOrganizationRepository::new();
-        repo.expect_list_for_user()
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
+            .expect_list_for_user()
             .with(eq(user_id))
             .times(1)
             .returning(|_| Box::pin(async { Ok(vec![]) }));
 
-        let mut service = OrganizationService::new(repo);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let orgs = service.list_organizations_for_user(user_id).await.unwrap();
 
         assert!(orgs.is_empty());
@@ -432,22 +517,27 @@ mod tests {
 
     #[tokio::test]
     async fn create_organization_seeds_roles_and_owner_membership() {
-        let mut repos = MockRepos::new();
+        let mut organization_repository = MockOrganizationRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
 
-        repos.org.expect_insert().times(1).returning(|o| {
-            let cloned = Organization {
-                id: o.id,
-                name: o.name.clone(),
-                slug: o.slug.clone(),
-                owner_id: o.owner_id,
-                deleted_at: o.deleted_at,
-                created_at: o.created_at,
-                updated_at: o.updated_at,
-            };
-            Box::pin(async move { Ok(cloned) })
-        });
+        organization_repository
+            .expect_insert()
+            .times(1)
+            .returning(|o| {
+                let cloned = Organization {
+                    id: o.id,
+                    name: o.name.clone(),
+                    slug: o.slug.clone(),
+                    owner_id: o.owner_id,
+                    deleted_at: o.deleted_at,
+                    created_at: o.created_at,
+                    updated_at: o.updated_at,
+                };
+                Box::pin(async move { Ok(cloned) })
+            });
 
-        repos.role.expect_insert().times(3).returning(|r| {
+        role_repository.expect_insert().times(3).returning(|r| {
             let cloned = Role {
                 id: r.id,
                 organization_id: r.organization_id,
@@ -459,7 +549,7 @@ mod tests {
             Box::pin(async move { Ok(cloned) })
         });
 
-        repos.member.expect_insert().times(1).returning(|m| {
+        member_repository.expect_insert().times(1).returning(|m| {
             let cloned = Member {
                 id: m.id,
                 organization_id: m.organization_id,
@@ -469,13 +559,14 @@ mod tests {
             Box::pin(async move { Ok(cloned) })
         });
 
-        repos
-            .member
+        member_repository
             .expect_assign_role()
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service = OrganizationService::new(repos);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         let org = service.create_organization(create_cmd()).await.unwrap();
 
         assert_eq!(org.name, "Acme");
@@ -488,9 +579,11 @@ mod tests {
         let owner_id = UserId(Uuid::new_v4());
         let org_id = OrganizationId(Uuid::new_v4());
 
-        let mut repos = MockRepos::new();
-        repos
-            .org
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+
+        organization_repository
             .expect_find_by_id()
             .with(eq(org_id))
             .times(2)
@@ -507,14 +600,16 @@ mod tests {
                 };
                 Box::pin(async move { Ok(Some(org)) })
             });
-        repos
-            .org
+
+        organization_repository
             .expect_soft_delete()
             .withf(move |i, _| *i == org_id)
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service = OrganizationService::new(repos);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         service.leave_organization(org_id, owner_id).await.unwrap();
     }
 
@@ -525,9 +620,11 @@ mod tests {
         let org_id = OrganizationId(Uuid::new_v4());
         let member_id = MemberId(Uuid::new_v4());
 
-        let mut repos = MockRepos::new();
-        repos
-            .org
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+
+        organization_repository
             .expect_find_by_id()
             .with(eq(org_id))
             .times(1)
@@ -544,8 +641,8 @@ mod tests {
                 };
                 Box::pin(async move { Ok(Some(org)) })
             });
-        repos
-            .member
+
+        member_repository
             .expect_find_by_org_and_user()
             .with(eq(org_id), eq(leaver_id))
             .times(1)
@@ -558,14 +655,16 @@ mod tests {
                 };
                 Box::pin(async move { Ok(Some(m)) })
             });
-        repos
-            .member
+
+        member_repository
             .expect_remove()
             .with(eq(member_id))
             .times(1)
             .returning(|_| Box::pin(async { Ok(()) }));
 
-        let mut service = OrganizationService::new(repos);
+        let mut service =
+            OrganizationService::new(organization_repository, role_repository, member_repository);
+
         service.leave_organization(org_id, leaver_id).await.unwrap();
     }
 }

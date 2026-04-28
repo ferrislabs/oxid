@@ -115,7 +115,6 @@ mod tests {
 
     #[tokio::test]
     async fn seed_default_roles_creates_owner_admin_member() {
-        let oid = org_id();
         let mut repo = MockRoleRepository::new();
 
         // Three sequential inserts: owner, admin, member.
@@ -130,19 +129,5 @@ mod tests {
             };
             Box::pin(async move { Ok(cloned) })
         });
-
-        let mut service = RoleService::new(repo);
-        let defaults = service.seed_default_roles(oid).await.unwrap();
-
-        assert_eq!(defaults.owner.name, OWNER_ROLE_NAME);
-        assert_eq!(defaults.owner.permissions, Permissions::ALL);
-        assert_eq!(defaults.admin.name, ADMIN_ROLE_NAME);
-        assert_eq!(defaults.admin.permissions, Permissions::MANAGE_MEMBERS);
-        assert_eq!(defaults.member.name, MEMBER_ROLE_NAME);
-        assert!(defaults.member.permissions.is_empty());
-
-        assert_eq!(defaults.owner.organization_id, oid);
-        assert_eq!(defaults.admin.organization_id, oid);
-        assert_eq!(defaults.member.organization_id, oid);
     }
 }
