@@ -1,5 +1,6 @@
 use auth::{AuthService, FerrisKeyRepository};
 use common::{Config, CoreError};
+use rate_limit::{Quota, RateLimitService, RedisRateLimiter};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
@@ -11,6 +12,7 @@ pub mod role;
 pub mod user;
 
 pub type OxidAuthService = AuthService<FerrisKeyRepository>;
+pub type OxidRateLimitService = RateLimitService<RedisRateLimiter>;
 
 #[derive(Clone)]
 pub struct OxidUseCase {
@@ -27,11 +29,23 @@ impl OxidUseCase {
 pub struct OxidService {
     pub auth: OxidAuthService,
     pub usecase: OxidUseCase,
+    pub rate_limit: OxidRateLimitService,
+    pub rate_limit_quota: Quota,
 }
 
 impl OxidService {
-    pub fn new(auth: OxidAuthService, usecase: OxidUseCase) -> Self {
-        Self { auth, usecase }
+    pub fn new(
+        auth: OxidAuthService,
+        usecase: OxidUseCase,
+        rate_limit: OxidRateLimitService,
+        rate_limit_quota: Quota,
+    ) -> Self {
+        Self {
+            auth,
+            usecase,
+            rate_limit,
+            rate_limit_quota,
+        }
     }
 }
 
@@ -52,5 +66,16 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
         .await
         .map_err(map_sqlx_error)?;
 
-    Ok(OxidService::new(auth, OxidUseCase::new(pool)))
+    let limiter = RedisRateLimiter::connect(&config.rate_limit.redis_url)
+        .await
+        .map_err(|e| CoreError::Internal(format!("redis connection failed: {e}")))?;
+    let rate_limit = RateLimitService::new(limiter);
+    let rate_limit_quota = Quota::per_minute(config.rate_limit.per_minute);
+
+    Ok(OxidService::new(
+        auth,
+        OxidUseCase::new(pool),
+        rate_limit,
+        rate_limit_quota,
+    ))
 }

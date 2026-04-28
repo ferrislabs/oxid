@@ -1,5 +1,6 @@
 use common::Config;
-use oxid_core::{OxidAuthService, OxidUseCase, create_service};
+use oxid_core::{OxidAuthService, OxidRateLimitService, OxidUseCase, create_service};
+use rate_limit::Quota;
 use server::errors::ServerError;
 use std::sync::Arc;
 
@@ -11,6 +12,8 @@ pub struct AppState {
 
     pub auth: OxidAuthService,
     pub usecase: OxidUseCase,
+    pub rate_limit: OxidRateLimitService,
+    pub rate_limit_quota: Quota,
 }
 
 pub async fn state(args: Arc<Args>) -> Result<AppState, ServerError> {
@@ -22,5 +25,7 @@ pub async fn state(args: Arc<Args>) -> Result<AppState, ServerError> {
         args,
         auth: service.auth,
         usecase: service.usecase,
+        rate_limit: service.rate_limit,
+        rate_limit_quota: service.rate_limit_quota,
     })
 }

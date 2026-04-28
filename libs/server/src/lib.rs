@@ -28,7 +28,7 @@ pub async fn run_server(addr: SocketAddr, router: Router) {
     info!("listening on {addr}");
 
     axum_server::bind(addr)
-        .serve(router.into_make_service())
+        .serve(router.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .expect("Failed to start server");
 }
