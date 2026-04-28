@@ -1,5 +1,5 @@
 use axum::extract::State;
-use handlers::{ApiError, AppState, Response};
+use handlers::{ApiError, AppState, DataEnvelope, Response};
 use oxid_core::OrganizationId;
 
 use crate::{paths::OrganizationPath, response::OrganizationResponse};
@@ -13,7 +13,7 @@ use crate::{paths::OrganizationPath, response::OrganizationResponse};
         ("organization_id" = OrganizationId, Path, description = "Organization identifier"),
     ),
     responses(
-        (status = 200, description = "Organization details", body = OrganizationResponse),
+        (status = 200, description = "Organization details", body = inline(DataEnvelope<OrganizationResponse>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "Organization not found"),

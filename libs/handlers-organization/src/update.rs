@@ -1,5 +1,5 @@
 use axum::{Json, extract::State};
-use handlers::{ApiError, AppState, Response};
+use handlers::{ApiError, AppState, DataEnvelope, Response};
 use oxid_core::OrganizationId;
 use serde::Deserialize;
 use utoipa::ToSchema;
@@ -22,7 +22,7 @@ pub struct UpdateOrganizationRequest {
     ),
     request_body = UpdateOrganizationRequest,
     responses(
-        (status = 200, description = "Organization updated", body = OrganizationResponse),
+        (status = 200, description = "Organization updated", body = inline(DataEnvelope<OrganizationResponse>)),
         (status = 400, description = "Validation failed"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),

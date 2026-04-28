@@ -5,5 +5,5 @@ pub mod response;
 pub mod state;
 
 pub use errors::{ApiError, MiddlewareError};
-pub use response::Response;
+pub use response::{DataEnvelope, Response};
 pub use state::{AppState, state};
