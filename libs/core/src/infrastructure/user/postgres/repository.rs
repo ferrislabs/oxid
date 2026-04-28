@@ -1,25 +1,30 @@
 use common::CoreError;
-use sqlx::{Postgres, Transaction};
+use oxid_macros::repository;
 
 use crate::{
     User,
     domain::user::ports::UserRepository,
-    infrastructure::{postgres::error::map_sqlx_error, user::postgres::model::UserRow},
+    infrastructure::{
+        postgres::{SharedTx, error::map_sqlx_error},
+        user::postgres::model::UserRow,
+    },
 };
 
+#[repository(domain = User, backend = Postgres)]
 pub struct PgUserRepository<'tx> {
-    tx: &'tx mut Transaction<'static, Postgres>,
+    tx: SharedTx<'tx>,
 }
 
 impl<'tx> PgUserRepository<'tx> {
-    pub fn new(tx: &'tx mut Transaction<'static, Postgres>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 
 impl<'tx> UserRepository for PgUserRepository<'tx> {
     #[tracing::instrument(skip(self, user), fields(db.system = "postgresql", db.operation = "upsert", db.table = "users", user.email = %user.email), err)]
     async fn upsert_by_email(&mut self, user: &User) -> Result<User, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             UserRow,
             r#"
@@ -40,7 +45,7 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
             user.created_at,
             user.updated_at,
         )
-        .fetch_one(&mut **self.tx)
+        .fetch_one(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -48,6 +53,7 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
     }
 
     async fn find_by_email(&mut self, email: &str) -> Result<Option<User>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             UserRow,
             r#"
@@ -57,7 +63,7 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
             "#,
             email,
         )
-        .fetch_optional(&mut **self.tx)
+        .fetch_optional(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 

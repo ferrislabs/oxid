@@ -1,4 +1,3 @@
-use auth::Token;
 use axum::{
     extract::{Request, State},
     middleware::Next,
@@ -22,11 +21,9 @@ pub async fn auth_middleware(
         .get(AUTHORIZATION)
         .ok_or(MiddlewareError::MissingAuthHeader)?;
 
-    let token = extract_token_from_bearer(auth_header)
-        .await
-        .map_err(|_| MiddlewareError::InvalidAuthHeader)?;
+    let token = extract_bearer(auth_header).map_err(|_| MiddlewareError::InvalidAuthHeader)?;
 
-    let identity = state.auth.get_identity(token.as_str()).await.map_err(|e| {
+    let identity = state.auth.get_identity(token).await.map_err(|e| {
         error!("Auth middleware: failed to identify user {:?}", e);
         MiddlewareError::AuthenticationFailed(e.to_string())
     })?;
@@ -36,16 +33,10 @@ pub async fn auth_middleware(
     Ok(next.run(req).await)
 }
 
-pub async fn extract_token_from_bearer(auth_header: &HeaderValue) -> Result<Token, ApiError> {
-    let auth_str = auth_header.to_str().map_err(|_| ApiError::TokenNotFound)?;
-
-    if !auth_str.starts_with("Bearer ") {
-        return Err(ApiError::TokenNotFound);
-    }
-
-    let token = auth_str
+pub fn extract_bearer(auth_header: &HeaderValue) -> Result<&str, ApiError> {
+    auth_header
+        .to_str()
+        .map_err(|_| ApiError::TokenNotFound)?
         .strip_prefix("Bearer ")
-        .ok_or(ApiError::TokenNotFound)?;
-
-    Ok(Token::new(token.to_string()))
+        .ok_or(ApiError::TokenNotFound)
 }

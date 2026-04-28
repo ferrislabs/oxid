@@ -13,50 +13,49 @@ use crate::{
         organization::OrganizationId,
         role::RoleId,
     },
-    infrastructure::member::postgres::PgMemberRepository,
 };
 
 impl OxidUseCase {
-    #[transactional]
+    #[transactional(member)]
     pub async fn add_member(&self, command: AddMemberCommand) -> Result<Member, CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.add_member(command).await
     }
 
-    #[transactional]
+    #[transactional(member)]
     pub async fn list_members(
         &self,
         organization_id: OrganizationId,
     ) -> Result<Vec<Member>, CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.list_members(organization_id).await
     }
 
-    #[transactional]
+    #[transactional(member)]
     pub async fn find_membership(
         &self,
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<Option<Member>, CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.find_membership(organization_id, user_id).await
     }
 
-    #[transactional]
+    #[transactional(member)]
     pub async fn remove_member(&self, member_id: MemberId) -> Result<(), CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.remove_member(member_id).await
     }
 
-    #[transactional]
+    #[transactional(member)]
     pub async fn assign_role(&self, command: AssignRoleCommand) -> Result<(), CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.assign_role(command).await
     }
 
-    #[transactional]
+    #[transactional(member)]
     pub async fn list_role_ids(&self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
-        let mut service = MemberService::new(PgMemberRepository::new(tx));
+        let mut service = MemberService::new(member_repository);
         service.list_role_ids(member_id).await
     }
 }

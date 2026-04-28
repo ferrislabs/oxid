@@ -74,7 +74,11 @@ impl RateLimiter for RedisRateLimiter {
         let mut conn = self.conn.clone();
         let now_ms = Utc::now().timestamp_millis();
         let window_ms = quota.window.as_millis() as i64;
-        let member = format!("{now_ms}-{}", uuid_like(now_ms));
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let member = format!("{now_ms}-{nanos:x}");
 
         let result: (i64, i64, i64) = self
             .script
@@ -103,12 +107,4 @@ impl RateLimiter for RedisRateLimiter {
     }
 }
 
-fn uuid_like(seed: i64) -> String {
-    // Cheap unique-ish suffix to avoid ZADD collisions within the same millisecond.
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    format!("{seed:x}{nanos:x}")
-}
 

@@ -1,27 +1,32 @@
 use common::CoreError;
-use sqlx::{Postgres, Transaction};
+use oxid_macros::repository;
 
 use crate::{
     domain::{
         organization::OrganizationId,
         role::{Role, ports::RoleRepository},
     },
-    infrastructure::{postgres::error::map_sqlx_error, role::postgres::model::RoleRow},
+    infrastructure::{
+        postgres::{SharedTx, error::map_sqlx_error},
+        role::postgres::model::RoleRow,
+    },
 };
 
+#[repository(domain = Role, backend = Postgres)]
 pub struct PgRoleRepository<'tx> {
-    tx: &'tx mut Transaction<'static, Postgres>,
+    tx: SharedTx<'tx>,
 }
 
 impl<'tx> PgRoleRepository<'tx> {
-    pub fn new(tx: &'tx mut Transaction<'static, Postgres>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 
 impl<'tx> RoleRepository for PgRoleRepository<'tx> {
     #[tracing::instrument(skip(self, role), fields(db.system = "postgresql", db.operation = "insert", db.table = "roles", role.name = %role.name), err)]
     async fn insert(&mut self, role: &Role) -> Result<Role, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             RoleRow,
             r#"
@@ -36,7 +41,7 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
             role.created_at,
             role.updated_at,
         )
-        .fetch_one(&mut **self.tx)
+        .fetch_one(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -48,6 +53,7 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
         &mut self,
         organization_id: OrganizationId,
     ) -> Result<Vec<Role>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let rows = sqlx::query_as!(
             RoleRow,
             r#"
@@ -58,7 +64,7 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
             "#,
             organization_id.0,
         )
-        .fetch_all(&mut **self.tx)
+        .fetch_all(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 

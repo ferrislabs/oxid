@@ -1,5 +1,5 @@
 use common::CoreError;
-use sqlx::{Postgres, Transaction};
+use oxid_macros::repository;
 
 use crate::{
     UserId,
@@ -8,22 +8,27 @@ use crate::{
         organization::OrganizationId,
         role::RoleId,
     },
-    infrastructure::{member::postgres::model::MemberRow, postgres::error::map_sqlx_error},
+    infrastructure::{
+        member::postgres::model::MemberRow,
+        postgres::{SharedTx, error::map_sqlx_error},
+    },
 };
 
+#[repository(domain = Member, backend = Postgres)]
 pub struct PgMemberRepository<'tx> {
-    tx: &'tx mut Transaction<'static, Postgres>,
+    tx: SharedTx<'tx>,
 }
 
 impl<'tx> PgMemberRepository<'tx> {
-    pub fn new(tx: &'tx mut Transaction<'static, Postgres>) -> Self {
-        Self { tx }
+    pub fn new(tx: &SharedTx<'tx>) -> Self {
+        Self { tx: tx.clone() }
     }
 }
 
 impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     #[tracing::instrument(skip(self, member), fields(db.system = "postgresql", db.operation = "insert", db.table = "organization_members"), err)]
     async fn insert(&mut self, member: &Member) -> Result<Member, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             MemberRow,
             r#"
@@ -36,7 +41,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             member.user_id.0,
             member.joined_at,
         )
-        .fetch_one(&mut **self.tx)
+        .fetch_one(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -48,6 +53,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         &mut self,
         organization_id: OrganizationId,
     ) -> Result<Vec<Member>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let rows = sqlx::query_as!(
             MemberRow,
             r#"
@@ -58,7 +64,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             "#,
             organization_id.0,
         )
-        .fetch_all(&mut **self.tx)
+        .fetch_all(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -67,6 +73,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "insert", db.table = "member_roles"), err)]
     async fn assign_role(&mut self, member_id: MemberId, role_id: RoleId) -> Result<(), CoreError> {
+        let mut tx = self.tx.lock().await;
         sqlx::query!(
             r#"
             INSERT INTO member_roles (id, member_id, role_id)
@@ -76,7 +83,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             member_id.0,
             role_id.0,
         )
-        .execute(&mut **self.tx)
+        .execute(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -89,6 +96,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<Option<Member>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
             MemberRow,
             r#"
@@ -99,7 +107,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             organization_id.0,
             user_id.0,
         )
-        .fetch_optional(&mut **self.tx)
+        .fetch_optional(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -108,6 +116,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "delete", db.table = "organization_members"), err)]
     async fn remove(&mut self, member_id: MemberId) -> Result<(), CoreError> {
+        let mut tx = self.tx.lock().await;
         let result = sqlx::query!(
             r#"
             DELETE FROM organization_members
@@ -115,7 +124,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             "#,
             member_id.0,
         )
-        .execute(&mut **self.tx)
+        .execute(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 
@@ -127,6 +136,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "member_roles"), err)]
     async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
+        let mut tx = self.tx.lock().await;
         let rows = sqlx::query!(
             r#"
             SELECT role_id
@@ -135,7 +145,7 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
             "#,
             member_id.0,
         )
-        .fetch_all(&mut **self.tx)
+        .fetch_all(&mut ***tx)
         .await
         .map_err(map_sqlx_error)?;
 

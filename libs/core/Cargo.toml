@@ -15,6 +15,7 @@ serde = { workspace = true }
 utoipa = { workspace = true }
 chrono = { workspace = true }
 sqlx = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 
 [dev-dependencies]

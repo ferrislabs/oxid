@@ -15,5 +15,10 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+divan = { workspace = true }
 tokio = { workspace = true }
 httpmock = "0.7.0"
+
+[[bench]]
+name = "token_decode"
+harness = false
