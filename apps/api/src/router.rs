@@ -1,4 +1,4 @@
-use axum::{Router, extract::Request};
+use axum::{Router, extract::Request, middleware};
 use http::{
     HeaderValue, Method,
     header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION},
@@ -9,7 +9,7 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use handlers::{ApiError, AppState};
+use handlers::{ApiError, AppState, rate_limit::rate_limit_middleware};
 use handlers_organization as organization;
 
 use crate::openapi::ApiDoc;
@@ -62,8 +62,13 @@ pub fn router(state: AppState) -> Result<Router, ApiError> {
         ])
         .allow_credentials(true);
 
+    let api_routes = organization::router().layer(middleware::from_fn_with_state(
+        state.clone(),
+        rate_limit_middleware,
+    ));
+
     let router = Router::new()
-        .merge(organization::router())
+        .merge(api_routes)
         .merge(Scalar::with_url("/scalar", openapi.clone()))
         .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", openapi.clone()))
         .layer(trace_layer)

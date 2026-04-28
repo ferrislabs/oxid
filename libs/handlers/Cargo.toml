@@ -10,6 +10,7 @@ auth = { workspace = true }
 common = { workspace = true }
 server = { workspace = true }
 args = { workspace = true }
+rate-limit = { workspace = true }
 
 axum = { workspace = true }
 http = { workspace = true }
@@ -17,3 +18,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

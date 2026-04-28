@@ -8,6 +8,7 @@ edition.workspace = true
 common = { workspace = true }
 auth = { workspace = true }
 oxid-macros = { workspace = true }
+rate-limit = { workspace = true }
 
 uuid = { workspace = true }
 serde = { workspace = true }

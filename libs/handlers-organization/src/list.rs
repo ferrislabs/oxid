@@ -18,5 +18,7 @@ pub async fn handler(
     _: OrganizationsPath,
     State(_state): State<AppState>,
 ) -> Result<Response<Vec<OrganizationResponse>>, ApiError> {
-    todo!("list organizations for the authenticated user")
+    let t: Vec<OrganizationResponse> = Vec::new();
+
+    Ok(Response::OK(t))
 }

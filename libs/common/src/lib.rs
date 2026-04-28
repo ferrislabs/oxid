@@ -6,6 +6,13 @@ use uuid::{NoContext, Timestamp, Uuid};
 pub struct Config {
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
+    pub rate_limit: RateLimitConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct RateLimitConfig {
+    pub redis_url: String,
+    pub per_minute: u32,
 }
 
 #[derive(Clone, Debug)]
