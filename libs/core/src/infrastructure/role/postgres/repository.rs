@@ -1,4 +1,5 @@
 use common::CoreError;
+use oxid_macros::repository;
 
 use crate::{
     domain::{
@@ -11,6 +12,7 @@ use crate::{
     },
 };
 
+#[repository(domain = Role, backend = Postgres)]
 pub struct PgRoleRepository<'tx> {
     tx: SharedTx<'tx>,
 }

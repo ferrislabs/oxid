@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use common::CoreError;
+use oxid_macros::repository;
 
 use crate::{
     UserId,
@@ -10,6 +11,7 @@ use crate::{
     },
 };
 
+#[repository(domain = Organization, backend = Postgres)]
 pub struct PgOrganizationRepository<'tx> {
     tx: SharedTx<'tx>,
 }
