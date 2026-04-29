@@ -6,5 +6,5 @@ pub mod state;
 
 pub use auth::IdentityExt;
 pub use errors::{ApiError, MiddlewareError};
-pub use response::{DataEnvelope, Response};
+pub use response::{DataEnvelope, Paginated, Response};
 pub use state::{AppState, state};

@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 oxid-core = { workspace = true }
 auth = { workspace = true }
+pagination = { workspace = true }
 common = { workspace = true }
 server = { workspace = true }
 args = { workspace = true }

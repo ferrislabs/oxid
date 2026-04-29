@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/api", "libs/args", "libs/auth", "libs/common", "libs/core", "libs/handlers", "libs/handlers-organization", "libs/iam", "libs/macros", "libs/rate-limit", "libs/server"]
+members = ["apps/api", "libs/args", "libs/auth", "libs/common", "libs/core", "libs/handlers", "libs/handlers-organization", "libs/iam", "libs/macros", "libs/pagination", "libs/rate-limit", "libs/server"]
 resolver = "3"
 
 [workspace.package]
@@ -51,5 +51,6 @@ handlers = { path = "libs/handlers" }
 handlers-organization = { path = "libs/handlers-organization" }
 iam = { path = "libs/iam" }
 oxid-macros = { path = "libs/macros" }
+pagination = { path = "libs/pagination" }
 rate-limit = { path = "libs/rate-limit" }
 server = { path = "libs/server" }
