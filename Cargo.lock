@@ -1544,6 +1544,7 @@ dependencies = [
  "http 1.4.0",
  "itoa",
  "oxid-core",
+ "pagination",
  "rate-limit",
  "serde",
  "serde_json",
@@ -2637,6 +2638,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "pagination"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "utoipa",
 ]
 
 [[package]]
