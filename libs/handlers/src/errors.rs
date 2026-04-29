@@ -42,6 +42,7 @@ impl IntoResponse for MiddlewareError {
             Json(ErrorBody {
                 code,
                 message: message.to_string(),
+                status: status.as_u16(),
                 details: None,
             }),
         )
@@ -112,6 +113,7 @@ pub enum ApiError {
 struct ErrorBody {
     code: &'static str,
     message: String,
+    status: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<serde_json::Value>,
 }
@@ -136,22 +138,22 @@ impl ApiError {
 
     fn code(&self) -> &'static str {
         match self {
-            Self::BadRequest(_) => "BAD_REQUEST",
-            Self::Validation(_) => "VALIDATION_ERROR",
-            Self::Unauthorized => "UNAUTHORIZED",
-            Self::TokenNotFound => "TOKEN_NOT_FOUND",
-            Self::TokenExpired => "TOKEN_EXPIRED",
-            Self::InvalidToken => "INVALID_TOKEN",
-            Self::Forbidden => "FORBIDDEN",
-            Self::InsufficientScope(_) => "INSUFFICIENT_SCOPE",
-            Self::NotFound => "NOT_FOUND",
-            Self::ResourceNotFound(_, _) => "RESOURCE_NOT_FOUND",
-            Self::Conflict(_) => "CONFLICT",
-            Self::UnprocessableEntity(_) => "UNPROCESSABLE_ENTITY",
-            Self::TooManyRequests => "TOO_MANY_REQUESTS",
-            Self::Internal => "INTERNAL_SERVER_ERROR",
-            Self::Database => "DATABASE_ERROR",
-            Self::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
+            Self::BadRequest(_) => "E_BAD_REQUEST",
+            Self::Validation(_) => "E_VALIDATION",
+            Self::Unauthorized => "E_UNAUTHORIZED",
+            Self::TokenNotFound => "E_TOKEN_NOT_FOUND",
+            Self::TokenExpired => "E_TOKEN_EXPIRED",
+            Self::InvalidToken => "E_INVALID_TOKEN",
+            Self::Forbidden => "E_FORBIDDEN",
+            Self::InsufficientScope(_) => "E_INSUFFICIENT_SCOPE",
+            Self::NotFound => "E_NOT_FOUND",
+            Self::ResourceNotFound(_, _) => "E_RESOURCE_NOT_FOUND",
+            Self::Conflict(_) => "E_CONFLICT",
+            Self::UnprocessableEntity(_) => "E_UNPROCESSABLE_ENTITY",
+            Self::TooManyRequests => "E_TOO_MANY_REQUESTS",
+            Self::Internal => "E_INTERNAL",
+            Self::Database => "E_DATABASE",
+            Self::ExternalService(_) => "E_EXTERNAL_SERVICE",
         }
     }
 }
@@ -179,6 +181,7 @@ impl IntoResponse for ApiError {
         let body = ErrorBody {
             code: self.code(),
             message: self.to_string(),
+            status: status.as_u16(),
             details: None,
         };
         (status, Json(body)).into_response()
@@ -203,6 +206,7 @@ mod tests {
             let (status, json) = parse_response($err).await;
             assert_eq!(status, $status);
             assert_eq!(json["code"], $code);
+            assert_eq!(json["status"], $status.as_u16());
             assert!(json["message"].is_string());
             assert!(json.get("details").is_none());
         }};
@@ -213,7 +217,7 @@ mod tests {
         assert_error!(
             ApiError::BadRequest("invalid field".into()),
             StatusCode::BAD_REQUEST,
-            "BAD_REQUEST"
+            "E_BAD_REQUEST"
         );
     }
 
@@ -222,7 +226,7 @@ mod tests {
         assert_error!(
             ApiError::Validation("email is required".into()),
             StatusCode::BAD_REQUEST,
-            "VALIDATION_ERROR"
+            "E_VALIDATION"
         );
     }
 
@@ -231,7 +235,7 @@ mod tests {
         assert_error!(
             ApiError::Unauthorized,
             StatusCode::UNAUTHORIZED,
-            "UNAUTHORIZED"
+            "E_UNAUTHORIZED"
         );
     }
 
@@ -240,7 +244,7 @@ mod tests {
         assert_error!(
             ApiError::TokenNotFound,
             StatusCode::UNAUTHORIZED,
-            "TOKEN_NOT_FOUND"
+            "E_TOKEN_NOT_FOUND"
         );
     }
 
@@ -249,7 +253,7 @@ mod tests {
         assert_error!(
             ApiError::TokenExpired,
             StatusCode::UNAUTHORIZED,
-            "TOKEN_EXPIRED"
+            "E_TOKEN_EXPIRED"
         );
     }
 
@@ -258,13 +262,13 @@ mod tests {
         assert_error!(
             ApiError::InvalidToken,
             StatusCode::UNAUTHORIZED,
-            "INVALID_TOKEN"
+            "E_INVALID_TOKEN"
         );
     }
 
     #[tokio::test]
     async fn test_403_forbidden() {
-        assert_error!(ApiError::Forbidden, StatusCode::FORBIDDEN, "FORBIDDEN");
+        assert_error!(ApiError::Forbidden, StatusCode::FORBIDDEN, "E_FORBIDDEN");
     }
 
     #[tokio::test]
@@ -272,13 +276,13 @@ mod tests {
         assert_error!(
             ApiError::InsufficientScope("admin:write".into()),
             StatusCode::FORBIDDEN,
-            "INSUFFICIENT_SCOPE"
+            "E_INSUFFICIENT_SCOPE"
         );
     }
 
     #[tokio::test]
     async fn test_404_not_found() {
-        assert_error!(ApiError::NotFound, StatusCode::NOT_FOUND, "NOT_FOUND");
+        assert_error!(ApiError::NotFound, StatusCode::NOT_FOUND, "E_NOT_FOUND");
     }
 
     #[tokio::test]
@@ -286,7 +290,8 @@ mod tests {
         let (status, json) =
             parse_response(ApiError::ResourceNotFound("Customer", "42".into())).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
-        assert_eq!(json["code"], "RESOURCE_NOT_FOUND");
+        assert_eq!(json["code"], "E_RESOURCE_NOT_FOUND");
+        assert_eq!(json["status"], 404);
         assert!(json["message"].as_str().unwrap().contains("Customer"));
         assert!(json["message"].as_str().unwrap().contains("42"));
     }
@@ -296,7 +301,7 @@ mod tests {
         assert_error!(
             ApiError::Conflict("email already exists".into()),
             StatusCode::CONFLICT,
-            "CONFLICT"
+            "E_CONFLICT"
         );
     }
 
@@ -305,7 +310,7 @@ mod tests {
         assert_error!(
             ApiError::UnprocessableEntity("invalid state transition".into()),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "UNPROCESSABLE_ENTITY"
+            "E_UNPROCESSABLE_ENTITY"
         );
     }
 
@@ -314,7 +319,7 @@ mod tests {
         assert_error!(
             ApiError::TooManyRequests,
             StatusCode::TOO_MANY_REQUESTS,
-            "TOO_MANY_REQUESTS"
+            "E_TOO_MANY_REQUESTS"
         );
     }
 
@@ -323,7 +328,7 @@ mod tests {
         assert_error!(
             ApiError::Internal,
             StatusCode::INTERNAL_SERVER_ERROR,
-            "INTERNAL_SERVER_ERROR"
+            "E_INTERNAL"
         );
     }
 
@@ -332,7 +337,7 @@ mod tests {
         assert_error!(
             ApiError::Database,
             StatusCode::INTERNAL_SERVER_ERROR,
-            "DATABASE_ERROR"
+            "E_DATABASE"
         );
     }
 
@@ -341,14 +346,14 @@ mod tests {
         assert_error!(
             ApiError::ExternalService("payment gateway timeout".into()),
             StatusCode::INTERNAL_SERVER_ERROR,
-            "EXTERNAL_SERVICE_ERROR"
+            "E_EXTERNAL_SERVICE"
         );
     }
 
     #[tokio::test]
     async fn from_core_error_not_found_maps_to_404() {
         let api: ApiError = CoreError::NotFound.into();
-        assert_error!(api, StatusCode::NOT_FOUND, "NOT_FOUND");
+        assert_error!(api, StatusCode::NOT_FOUND, "E_NOT_FOUND");
     }
 
     #[tokio::test]
@@ -356,20 +361,21 @@ mod tests {
         let api: ApiError = CoreError::Conflict("slug taken".into()).into();
         let (status, json) = parse_response(api).await;
         assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(json["code"], "CONFLICT");
+        assert_eq!(json["code"], "E_CONFLICT");
+        assert_eq!(json["status"], 409);
         assert!(json["message"].as_str().unwrap().contains("slug taken"));
     }
 
     #[tokio::test]
     async fn from_core_error_database_maps_to_500_database() {
         let api: ApiError = CoreError::Database("connection lost".into()).into();
-        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR");
+        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "E_DATABASE");
     }
 
     #[tokio::test]
     async fn from_core_error_internal_maps_to_500_internal() {
         let api: ApiError = CoreError::Internal("boom".into()).into();
-        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "E_INTERNAL");
     }
 
     #[tokio::test]

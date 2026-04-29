@@ -1,6 +1,22 @@
 use chrono::Utc;
 use common::{CoreError, generate_uuid_v7};
 
+/// Translates a Postgres unique-violation into a business-friendly message.
+/// The infra layer surfaces `CoreError::Conflict(constraint_name)`; we map the
+/// stable constraint identifier to a message safe to expose at the API.
+fn map_organization_conflict(err: CoreError) -> CoreError {
+    match err {
+        CoreError::Conflict(constraint) => {
+            let message = match constraint.as_str() {
+                "organizations_slug_key" => "slug already taken",
+                _ => "organization conflict",
+            };
+            CoreError::Conflict(message.to_owned())
+        }
+        other => other,
+    }
+}
+
 use crate::{
     UserId,
     domain::{
@@ -86,7 +102,10 @@ where
         organization.slug = command.slug;
         organization.updated_at = Utc::now();
 
-        self.organization_repository.update(&organization).await
+        self.organization_repository
+            .update(&organization)
+            .await
+            .map_err(map_organization_conflict)
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
@@ -126,7 +145,8 @@ where
                 created_at: now,
                 updated_at: now,
             })
-            .await?;
+            .await
+            .map_err(map_organization_conflict)?;
 
         let owner_role = self
             .role_repository
@@ -586,7 +606,21 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
+        let mut user_repository = MockUserRepository::new();
+
+        user_repository.expect_find_by_sub().times(1).returning(|s| {
+            let now = Utc::now();
+            let user = User {
+                id: UserId(Uuid::new_v4()),
+                email: "owner@example.com".into(),
+                username: "owner".into(),
+                name: "Owner".into(),
+                sub: s.to_owned(),
+                created_at: now,
+                updated_at: now,
+            };
+            Box::pin(async move { Ok(Some(user)) })
+        });
 
         organization_repository
             .expect_insert()
@@ -643,6 +677,52 @@ mod tests {
         assert_eq!(org.name, "Acme");
         assert_eq!(org.slug, "acme");
         assert!(org.deleted_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn create_organization_translates_slug_unique_violation_to_business_error() {
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+        let mut user_repository = MockUserRepository::new();
+
+        user_repository.expect_find_by_sub().times(1).returning(|s| {
+            let now = Utc::now();
+            let user = User {
+                id: UserId(Uuid::new_v4()),
+                email: "owner@example.com".into(),
+                username: "owner".into(),
+                name: "Owner".into(),
+                sub: s.to_owned(),
+                created_at: now,
+                updated_at: now,
+            };
+            Box::pin(async move { Ok(Some(user)) })
+        });
+
+        // Infra-style payload: constraint name only.
+        organization_repository
+            .expect_insert()
+            .times(1)
+            .returning(|_| {
+                Box::pin(async {
+                    Err(CoreError::Conflict("organizations_slug_key".into()))
+                })
+            });
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
+
+        let err = service.create_organization(create_cmd()).await.unwrap_err();
+
+        match err {
+            CoreError::Conflict(msg) => assert_eq!(msg, "slug already taken"),
+            other => panic!("expected Conflict, got {other:?}"),
+        }
     }
 
     #[tokio::test]
