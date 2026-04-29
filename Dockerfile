@@ -1,3 +1,62 @@
+FROM rust:1.95.0-bookworm AS chef
+
+WORKDIR /usr/local/src/oxid
+
+RUN cargo install cargo-chef --version 0.1.77 --locked && \
+    cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres --locked
+
+# --- Plan: extract a recipe of the workspace dependency graph ----------
+# Only Cargo.toml / Cargo.lock changes invalidate this layer.
+FROM chef AS planner
+
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# --- Cook: build every dependency from the recipe ----------------------
+# This layer is cached as long as recipe.json (i.e. the dep graph) is
+# stable. Source changes do not invalidate it.
+FROM chef AS builder
+
+COPY --from=planner /usr/local/src/oxid/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# --- Build the actual workspace binaries -------------------------------
+COPY . .
+RUN cargo build --release
+
+FROM debian:bookworm-slim AS runtime
+
+RUN \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates=20230311+deb12u1 \
+    libssl3=3.0.17-1~deb12u2 && \
+    rm -rf /var/lib/apt/lists/* && \
+    addgroup \
+    --system \
+    --gid 1000 \
+    oxid && \
+    adduser \
+    --system \
+    --no-create-home \
+    --disabled-login \
+    --uid 1000 \
+    --gid 1000 \
+    oxid
+
+USER oxid
+
+FROM runtime AS api
+
+COPY --from=builder /usr/local/src/oxid/target/release/api /usr/local/bin/api
+COPY --from=builder /usr/local/src/oxid/migrations /usr/local/oxid/migrations
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/
+
+EXPOSE 80
+
+ENTRYPOINT [ "api" ]
+
+
 FROM node:24.13.0-alpine AS webapp-deps
 
 WORKDIR /usr/local/src/oxid
