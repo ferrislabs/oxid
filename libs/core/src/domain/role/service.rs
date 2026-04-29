@@ -3,10 +3,7 @@ use common::{CoreError, generate_uuid_v7};
 
 use crate::domain::{
     organization::OrganizationId,
-    role::{
-        ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, OWNER_ROLE_NAME, Permissions, Role, RoleId,
-        commands::CreateRoleCommand, ports::RoleRepository,
-    },
+    role::{Role, RoleId, commands::CreateRoleCommand, ports::RoleRepository},
 };
 
 pub struct RoleService<R>
@@ -37,35 +34,6 @@ where
         };
 
         self.repo.insert(&role).await
-    }
-
-    #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
-    pub async fn seed_default_roles(
-        &mut self,
-        organization_id: OrganizationId,
-    ) -> Result<Vec<Role>, CoreError> {
-        let defaults = [
-            (OWNER_ROLE_NAME, Permissions::ALL),
-            (
-                ADMIN_ROLE_NAME,
-                Permissions::MANAGE_MEMBERS | Permissions::MANAGE_ROLES,
-            ),
-            (MEMBER_ROLE_NAME, Permissions::NONE),
-        ];
-
-        let mut roles = Vec::with_capacity(defaults.len());
-        for (name, permissions) in defaults {
-            let role = self
-                .create_role(CreateRoleCommand {
-                    organization_id,
-                    name: name.to_owned(),
-                    permissions,
-                })
-                .await?;
-            roles.push(role);
-        }
-
-        Ok(roles)
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0), err)]
@@ -143,37 +111,5 @@ mod tests {
 
         assert_eq!(roles.len(), 1);
         assert_eq!(roles[0].name, "admin");
-    }
-
-    #[tokio::test]
-    async fn seed_default_roles_creates_owner_admin_member() {
-        let mut repo = MockRoleRepository::new();
-
-        // Three sequential inserts: owner, admin, member.
-        repo.expect_insert().times(3).returning(|r| {
-            let cloned = Role {
-                id: r.id,
-                organization_id: r.organization_id,
-                name: r.name.clone(),
-                permissions: r.permissions,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
-            };
-            Box::pin(async move { Ok(cloned) })
-        });
-
-        let mut service = RoleService::new(repo);
-        let roles = service.seed_default_roles(org_id()).await.unwrap();
-
-        assert_eq!(roles.len(), 3);
-        assert_eq!(roles[0].name, OWNER_ROLE_NAME);
-        assert_eq!(roles[0].permissions, Permissions::ALL);
-        assert_eq!(roles[1].name, ADMIN_ROLE_NAME);
-        assert_eq!(
-            roles[1].permissions,
-            Permissions::MANAGE_MEMBERS | Permissions::MANAGE_ROLES
-        );
-        assert_eq!(roles[2].name, MEMBER_ROLE_NAME);
-        assert_eq!(roles[2].permissions, Permissions::NONE);
     }
 }

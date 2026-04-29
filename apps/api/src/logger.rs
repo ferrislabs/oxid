@@ -37,12 +37,12 @@ pub fn init_tracing_and_logging(
         let otlp_endpoint = observability_args
             .otlp_endpoint
             .as_ref()
-            .ok_or_else(|| ApiError::Internal)?;
+            .ok_or(ApiError::Internal)?;
 
         let metrics_endpoints = observability_args
             .metrics_endpoint
             .as_ref()
-            .ok_or_else(|| ApiError::Internal)?;
+            .ok_or(ApiError::Internal)?;
 
         let resource = Resource::builder()
             .with_service_name(service_name.to_string())

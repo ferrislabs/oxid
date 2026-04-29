@@ -608,19 +608,22 @@ mod tests {
         let mut member_repository = MockMemberRepository::new();
         let mut user_repository = MockUserRepository::new();
 
-        user_repository.expect_find_by_sub().times(1).returning(|s| {
-            let now = Utc::now();
-            let user = User {
-                id: UserId(Uuid::new_v4()),
-                email: "owner@example.com".into(),
-                username: "owner".into(),
-                name: "Owner".into(),
-                sub: s.to_owned(),
-                created_at: now,
-                updated_at: now,
-            };
-            Box::pin(async move { Ok(Some(user)) })
-        });
+        user_repository
+            .expect_find_by_sub()
+            .times(1)
+            .returning(|s| {
+                let now = Utc::now();
+                let user = User {
+                    id: UserId(Uuid::new_v4()),
+                    email: "owner@example.com".into(),
+                    username: "owner".into(),
+                    name: "Owner".into(),
+                    sub: s.to_owned(),
+                    created_at: now,
+                    updated_at: now,
+                };
+                Box::pin(async move { Ok(Some(user)) })
+            });
 
         organization_repository
             .expect_insert()
@@ -686,28 +689,29 @@ mod tests {
         let member_repository = MockMemberRepository::new();
         let mut user_repository = MockUserRepository::new();
 
-        user_repository.expect_find_by_sub().times(1).returning(|s| {
-            let now = Utc::now();
-            let user = User {
-                id: UserId(Uuid::new_v4()),
-                email: "owner@example.com".into(),
-                username: "owner".into(),
-                name: "Owner".into(),
-                sub: s.to_owned(),
-                created_at: now,
-                updated_at: now,
-            };
-            Box::pin(async move { Ok(Some(user)) })
-        });
+        user_repository
+            .expect_find_by_sub()
+            .times(1)
+            .returning(|s| {
+                let now = Utc::now();
+                let user = User {
+                    id: UserId(Uuid::new_v4()),
+                    email: "owner@example.com".into(),
+                    username: "owner".into(),
+                    name: "Owner".into(),
+                    sub: s.to_owned(),
+                    created_at: now,
+                    updated_at: now,
+                };
+                Box::pin(async move { Ok(Some(user)) })
+            });
 
         // Infra-style payload: constraint name only.
         organization_repository
             .expect_insert()
             .times(1)
             .returning(|_| {
-                Box::pin(async {
-                    Err(CoreError::Conflict("organizations_slug_key".into()))
-                })
+                Box::pin(async { Err(CoreError::Conflict("organizations_slug_key".into())) })
             });
 
         let mut service = OrganizationService::new(

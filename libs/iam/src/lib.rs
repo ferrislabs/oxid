@@ -14,7 +14,7 @@ pub mod domain;
 pub use domain::{
     errors::IamError,
     models::{
-        organization::{IamCreateOrganization, IamOrganization, IamOrgId, IamUpdateOrganization},
+        organization::{IamCreateOrganization, IamOrgId, IamOrganization, IamUpdateOrganization},
         role::{IamCreateRole, IamRole, IamRoleId, IamUpdateRole},
         user::{IamCreateUser, IamUpdateUser, IamUser, IamUserId},
     },
