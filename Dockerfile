@@ -1,64 +1,28 @@
-FROM rust:1.95.0-bookworm AS rust-build
+FROM rust:1.95.0-bookworm AS chef
 
 WORKDIR /usr/local/src/oxid
 
-RUN cargo install sqlx-cli --no-default-features --features postgres
+RUN cargo install cargo-chef --version 0.1.77 --locked && \
+    cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres --locked
 
-COPY Cargo.toml Cargo.lock ./
-COPY libs/args/Cargo.toml libs/args/Cargo.toml
-COPY libs/auth/Cargo.toml libs/auth/Cargo.toml
-COPY libs/common/Cargo.toml libs/common/Cargo.toml
-COPY libs/core/Cargo.toml libs/core/Cargo.toml
-COPY libs/handlers/Cargo.toml libs/handlers/Cargo.toml
-COPY libs/handlers-organization/Cargo.toml libs/handlers-organization/Cargo.toml
-COPY libs/iam/Cargo.toml libs/iam/Cargo.toml
-COPY libs/macros/Cargo.toml libs/macros/Cargo.toml
-COPY libs/rate-limit/Cargo.toml libs/rate-limit/Cargo.toml
-COPY libs/server/Cargo.toml libs/server/Cargo.toml
+# --- Plan: extract a recipe of the workspace dependency graph ----------
+# Only Cargo.toml / Cargo.lock changes invalidate this layer.
+FROM chef AS planner
 
-COPY apps/api/Cargo.toml apps/api/Cargo.toml
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-RUN \
-  mkdir -p libs/args/src libs/auth/src libs/auth/benches libs/common/src libs/core/src libs/handlers/src libs/handlers/benches libs/handlers-organization/src libs/iam/src libs/macros/src libs/rate-limit/src libs/rate-limit/benches libs/server/src apps/api/src && \
-  touch libs/args/src/lib.rs libs/auth/src/lib.rs libs/common/src/lib.rs libs/core/src/lib.rs libs/handlers/src/lib.rs libs/handlers-organization/src/lib.rs libs/iam/src/lib.rs libs/macros/src/lib.rs libs/rate-limit/src/lib.rs libs/server/src/lib.rs && \
-  echo "fn main() {}" > apps/api/src/main.rs && \
-  echo "fn main() {}" > libs/auth/benches/token_decode.rs && \
-  echo "fn main() {}" > libs/handlers/benches/rate_limit_headers.rs && \
-  echo "fn main() {}" > libs/rate-limit/benches/key_format.rs && \
-  cargo build --release
+# --- Cook: build every dependency from the recipe ----------------------
+# This layer is cached as long as recipe.json (i.e. the dep graph) is
+# stable. Source changes do not invalidate it.
+FROM chef AS builder
 
-COPY libs/args/src/ libs/args/src/
-COPY libs/auth/src/ libs/auth/src/
-COPY libs/auth/benches/ libs/auth/benches/
-COPY libs/common/src/ libs/common/src/
-COPY libs/core/src/ libs/core/src/
-COPY libs/handlers/src/ libs/handlers/src/
-COPY libs/handlers/benches/ libs/handlers/benches/
-COPY libs/handlers-organization/src/ libs/handlers-organization/src/
-COPY libs/iam/src/ libs/iam/src/
-COPY libs/macros/src/ libs/macros/src/
-COPY libs/rate-limit/src/ libs/rate-limit/src/
-COPY libs/rate-limit/benches/ libs/rate-limit/benches/
-COPY libs/server/src/ libs/server/src/
+COPY --from=planner /usr/local/src/oxid/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-COPY apps/api/src/ apps/api/src/
-
-COPY .sqlx .sqlx
-
-COPY migrations/ migrations/
-
-RUN \
-    touch libs/args/src/lib.rs && \
-    touch libs/auth/src/lib.rs && \
-    touch libs/common/src/lib.rs && \
-    touch libs/core/src/lib.rs && \
-    touch libs/handlers/src/lib.rs && \
-    touch libs/handlers-organization/src/lib.rs && \
-    touch libs/iam/src/lib.rs && \
-    touch libs/macros/src/lib.rs && \
-    touch libs/rate-limit/src/lib.rs && \
-    touch libs/server/src/lib.rs && \
-    cargo build --release
+# --- Build the actual workspace binaries -------------------------------
+COPY . .
+RUN cargo build --release
 
 FROM debian:bookworm-slim AS runtime
 
@@ -84,9 +48,9 @@ USER oxid
 
 FROM runtime AS api
 
-COPY --from=rust-build /usr/local/src/oxid/target/release/api /usr/local/bin/api
-COPY --from=rust-build /usr/local/src/oxid/migrations /usr/local/oxid/migrations
-COPY --from=rust-build /usr/local/cargo/bin/sqlx /usr/local/bin/
+COPY --from=builder /usr/local/src/oxid/target/release/api /usr/local/bin/api
+COPY --from=builder /usr/local/src/oxid/migrations /usr/local/oxid/migrations
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/
 
 EXPOSE 80
 
