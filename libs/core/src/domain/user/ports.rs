@@ -13,4 +13,9 @@ pub trait UserRepository: Send {
         &mut self,
         email: &str,
     ) -> impl Future<Output = Result<Option<User>, CoreError>> + Send;
+
+    fn find_by_sub(
+        &mut self,
+        sub: &str,
+    ) -> impl Future<Output = Result<Option<User>, CoreError>> + Send;
 }

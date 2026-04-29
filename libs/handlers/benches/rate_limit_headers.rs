@@ -17,7 +17,10 @@ fn fallback() -> SocketAddr {
 }
 
 fn make_request(headers: &[(&str, &str)]) -> Request {
-    let mut req = Request::builder().uri("/").body(axum::body::Body::empty()).unwrap();
+    let mut req = Request::builder()
+        .uri("/")
+        .body(axum::body::Body::empty())
+        .unwrap();
     for (k, v) in headers {
         req.headers_mut().insert(
             http::HeaderName::from_bytes(k.as_bytes()).unwrap(),

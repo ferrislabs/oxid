@@ -1,6 +1,22 @@
 use chrono::Utc;
 use common::{CoreError, generate_uuid_v7};
 
+/// Translates a Postgres unique-violation into a business-friendly message.
+/// The infra layer surfaces `CoreError::Conflict(constraint_name)`; we map the
+/// stable constraint identifier to a message safe to expose at the API.
+fn map_organization_conflict(err: CoreError) -> CoreError {
+    match err {
+        CoreError::Conflict(constraint) => {
+            let message = match constraint.as_str() {
+                "organizations_slug_key" => "slug already taken",
+                _ => "organization conflict",
+            };
+            CoreError::Conflict(message.to_owned())
+        }
+        other => other,
+    }
+}
+
 use crate::{
     UserId,
     domain::{
@@ -14,31 +30,41 @@ use crate::{
             ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, OWNER_ROLE_NAME, Permissions, Role, RoleId,
             ports::RoleRepository,
         },
+        user::ports::UserRepository,
     },
 };
 
-pub struct OrganizationService<O, R, M>
+pub struct OrganizationService<O, R, M, U>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
+    U: UserRepository,
 {
     organization_repository: O,
     role_repository: R,
     member_repository: M,
+    user_repository: U,
 }
 
-impl<O, R, M> OrganizationService<O, R, M>
+impl<O, R, M, U> OrganizationService<O, R, M, U>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
+    U: UserRepository,
 {
-    pub fn new(organization_repository: O, role_repository: R, member_repository: M) -> Self {
+    pub fn new(
+        organization_repository: O,
+        role_repository: R,
+        member_repository: M,
+        user_repository: U,
+    ) -> Self {
         Self {
             organization_repository,
             role_repository,
             member_repository,
+            user_repository,
         }
     }
 
@@ -76,7 +102,10 @@ where
         organization.slug = command.slug;
         organization.updated_at = Utc::now();
 
-        self.organization_repository.update(&organization).await
+        self.organization_repository
+            .update(&organization)
+            .await
+            .map_err(map_organization_conflict)
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
@@ -90,14 +119,7 @@ where
             .soft_delete(id, Utc::now())
             .await
     }
-}
 
-impl<O, R, M> OrganizationService<O, R, M>
-where
-    O: OrganizationRepository,
-    R: RoleRepository,
-    M: MemberRepository,
-{
     #[tracing::instrument(skip(self), fields(organization.slug = %command.slug, owner_id = %command.owner_id.0), err)]
     pub async fn create_organization(
         &mut self,
@@ -106,18 +128,25 @@ where
         let now = Utc::now();
         let owner_id = command.owner_id;
 
+        let user = self
+            .user_repository
+            .find_by_sub(owner_id.to_string().as_str())
+            .await?
+            .ok_or(CoreError::NotFound)?;
+
         let organization = self
             .organization_repository
             .insert(&Organization {
                 id: OrganizationId(generate_uuid_v7()),
                 name: command.name,
                 slug: command.slug,
-                owner_id,
+                owner_id: user.id,
                 deleted_at: None,
                 created_at: now,
                 updated_at: now,
             })
-            .await?;
+            .await
+            .map_err(map_organization_conflict)?;
 
         let owner_role = self
             .role_repository
@@ -158,7 +187,7 @@ where
             .insert(&Member {
                 id: MemberId(generate_uuid_v7()),
                 organization_id: organization.id,
-                user_id: owner_id,
+                user_id: user.id,
                 joined_at: now,
             })
             .await?;
@@ -220,6 +249,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -227,8 +257,12 @@ mod tests {
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
         let err = service.get_organization(id).await.unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
@@ -241,6 +275,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -251,8 +286,12 @@ mod tests {
                 Box::pin(async move { Ok(Some(org)) })
             });
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let org = service.get_organization(id).await.unwrap();
 
@@ -266,6 +305,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -291,8 +331,12 @@ mod tests {
                 Box::pin(async move { Ok(cloned) })
             });
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let updated = service
             .update_organization(UpdateOrganizationCommand {
@@ -314,6 +358,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -321,8 +366,12 @@ mod tests {
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let err = service
             .update_organization(UpdateOrganizationCommand {
@@ -343,6 +392,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -359,8 +409,12 @@ mod tests {
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         service.soft_delete_organization(id).await.unwrap();
     }
@@ -372,6 +426,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -379,8 +434,12 @@ mod tests {
             .times(1)
             .returning(|_| Box::pin(async { Ok(None) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let err = service.soft_delete_organization(id).await.unwrap_err();
 
@@ -394,6 +453,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_list_for_user()
@@ -401,20 +461,31 @@ mod tests {
             .times(1)
             .returning(|_| Box::pin(async { Ok(vec![]) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let orgs = service.list_organizations_for_user(user_id).await.unwrap();
 
         assert!(orgs.is_empty());
     }
 
-    use crate::domain::{member::ports::MockMemberRepository, role::ports::MockRoleRepository};
+    use crate::{
+        User,
+        domain::{
+            member::ports::MockMemberRepository, role::ports::MockRoleRepository,
+            user::ports::MockUserRepository,
+        },
+    };
 
     struct MockRepos {
         org: MockOrganizationRepository,
         role: MockRoleRepository,
         member: MockMemberRepository,
+        user: MockUserRepository,
     }
 
     impl MockRepos {
@@ -423,6 +494,7 @@ mod tests {
                 org: MockOrganizationRepository::new(),
                 role: MockRoleRepository::new(),
                 member: MockMemberRepository::new(),
+                user: MockUserRepository::new(),
             }
         }
     }
@@ -507,6 +579,20 @@ mod tests {
         }
     }
 
+    impl UserRepository for MockRepos {
+        async fn upsert_by_email(&mut self, user: &User) -> Result<User, CoreError> {
+            self.user.upsert_by_email(user).await
+        }
+
+        async fn find_by_email(&mut self, email: &str) -> Result<Option<User>, CoreError> {
+            self.user.find_by_email(email).await
+        }
+
+        async fn find_by_sub(&mut self, sub: &str) -> Result<Option<User>, CoreError> {
+            self.user.find_by_sub(sub).await
+        }
+    }
+
     fn create_cmd() -> CreateOrganizationCommand {
         CreateOrganizationCommand {
             name: "Acme".into(),
@@ -520,6 +606,21 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
+        let mut user_repository = MockUserRepository::new();
+
+        user_repository.expect_find_by_sub().times(1).returning(|s| {
+            let now = Utc::now();
+            let user = User {
+                id: UserId(Uuid::new_v4()),
+                email: "owner@example.com".into(),
+                username: "owner".into(),
+                name: "Owner".into(),
+                sub: s.to_owned(),
+                created_at: now,
+                updated_at: now,
+            };
+            Box::pin(async move { Ok(Some(user)) })
+        });
 
         organization_repository
             .expect_insert()
@@ -564,14 +665,64 @@ mod tests {
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         let org = service.create_organization(create_cmd()).await.unwrap();
 
         assert_eq!(org.name, "Acme");
         assert_eq!(org.slug, "acme");
         assert!(org.deleted_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn create_organization_translates_slug_unique_violation_to_business_error() {
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let member_repository = MockMemberRepository::new();
+        let mut user_repository = MockUserRepository::new();
+
+        user_repository.expect_find_by_sub().times(1).returning(|s| {
+            let now = Utc::now();
+            let user = User {
+                id: UserId(Uuid::new_v4()),
+                email: "owner@example.com".into(),
+                username: "owner".into(),
+                name: "Owner".into(),
+                sub: s.to_owned(),
+                created_at: now,
+                updated_at: now,
+            };
+            Box::pin(async move { Ok(Some(user)) })
+        });
+
+        // Infra-style payload: constraint name only.
+        organization_repository
+            .expect_insert()
+            .times(1)
+            .returning(|_| {
+                Box::pin(async {
+                    Err(CoreError::Conflict("organizations_slug_key".into()))
+                })
+            });
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
+
+        let err = service.create_organization(create_cmd()).await.unwrap_err();
+
+        match err {
+            CoreError::Conflict(msg) => assert_eq!(msg, "slug already taken"),
+            other => panic!("expected Conflict, got {other:?}"),
+        }
     }
 
     #[tokio::test]
@@ -582,6 +733,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -607,8 +759,12 @@ mod tests {
             .times(1)
             .returning(|_, _| Box::pin(async { Ok(()) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         service.leave_organization(org_id, owner_id).await.unwrap();
     }
@@ -623,6 +779,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -662,8 +819,12 @@ mod tests {
             .times(1)
             .returning(|_| Box::pin(async { Ok(()) }));
 
-        let mut service =
-            OrganizationService::new(organization_repository, role_repository, member_repository);
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+        );
 
         service.leave_organization(org_id, leaver_id).await.unwrap();
     }

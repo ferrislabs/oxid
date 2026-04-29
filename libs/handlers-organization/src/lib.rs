@@ -1,6 +1,6 @@
-use axum::{Router, routing::get};
+use axum::{Router, middleware::from_fn_with_state, routing::get};
 use axum_extra::routing::TypedPath;
-use handlers::AppState;
+use handlers::{AppState, auth::auth_middleware, rate_limit::rate_limit_middleware};
 
 use crate::paths::{OrganizationPath, OrganizationsPath};
 
@@ -14,7 +14,7 @@ pub mod update;
 
 pub const TAG: &str = "organizations";
 
-pub fn router() -> Router<AppState> {
+pub fn router(state: &AppState) -> Router<AppState> {
     Router::new()
         .route(
             OrganizationsPath::PATH,
@@ -26,4 +26,6 @@ pub fn router() -> Router<AppState> {
                 .patch(update::handler)
                 .delete(soft_delete::handler),
         )
+        .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
+        .layer(from_fn_with_state(state.clone(), auth_middleware))
 }

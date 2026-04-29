@@ -1551,12 +1551,14 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "utoipa",
 ]
 
 [[package]]
 name = "handlers-organization"
 version = "0.1.0"
 dependencies = [
+ "auth",
  "axum",
  "axum-extra",
  "chrono",
@@ -1564,6 +1566,7 @@ dependencies = [
  "http 1.4.0",
  "oxid-core",
  "serde",
+ "tracing",
  "utoipa",
 ]
 

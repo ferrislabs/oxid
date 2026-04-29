@@ -75,12 +75,10 @@ impl Parse for RepositoryAttrs {
         }
 
         Ok(Self {
-            domain: domain.ok_or_else(|| {
-                syn::Error::new(input.span(), "missing required key `domain`")
-            })?,
-            backend: backend.ok_or_else(|| {
-                syn::Error::new(input.span(), "missing required key `backend`")
-            })?,
+            domain: domain
+                .ok_or_else(|| syn::Error::new(input.span(), "missing required key `domain`"))?,
+            backend: backend
+                .ok_or_else(|| syn::Error::new(input.span(), "missing required key `backend`"))?,
         })
     }
 }

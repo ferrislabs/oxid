@@ -1,5 +1,5 @@
 use axum::extract::State;
-use handlers::{ApiError, AppState, Response};
+use handlers::{ApiError, AppState, DataEnvelope, Response};
 
 use crate::{paths::OrganizationsPath, response::OrganizationResponse};
 
@@ -9,7 +9,7 @@ use crate::{paths::OrganizationsPath, response::OrganizationResponse};
     operation_id = "listOrganizations",
     tag = super::TAG,
     responses(
-        (status = 200, description = "List organizations the caller belongs to", body = [OrganizationResponse]),
+        (status = 200, description = "List organizations the caller belongs to", body = inline(DataEnvelope<Vec<OrganizationResponse>>)),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer_auth" = []))
