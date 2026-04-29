@@ -6,7 +6,7 @@ pub struct AuthArgs {
         long = "auth-issuer",
         env = "AUTH_ISSUER",
         name = "AUTH_ISSUER",
-        default_value = "http://localhost:8888/realms/aether",
+        default_value = "http://localhost:3333/realms/oxid",
         long_help = "The issuer URL to use for authentication"
     )]
     pub issuer: String,
@@ -15,7 +15,7 @@ pub struct AuthArgs {
         long = "auth-client-id",
         env = "AUTH_CLIENT_ID",
         name = "AUTH_CLIENT_ID",
-        default_value = "aether",
+        default_value = "oxid",
         long_help = "The client ID to use for authentication"
     )]
     pub client_id: String,
@@ -24,7 +24,7 @@ pub struct AuthArgs {
         long = "auth-client-secret",
         env = "AUTH_CLIENT_SECRET",
         name = "AUTH_CLIENT_SECRET",
-        default_value = "aether",
+        default_value = "oxid",
         long_help = "The client secret to use for authentication"
     )]
     pub client_secret: String,

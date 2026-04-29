@@ -1,5 +1,7 @@
-use axum::{Json, extract::State};
-use handlers::{ApiError, AppState, DataEnvelope, Response};
+use auth::Identity;
+use axum::{Extension, Json, extract::State};
+use handlers::{ApiError, AppState, DataEnvelope, IdentityExt, Response};
+use oxid_core::CreateOrganizationCommand;
 use serde::Deserialize;
 use utoipa::ToSchema;
 
@@ -25,10 +27,20 @@ pub struct CreateOrganizationRequest {
     ),
     security(("bearer_auth" = []))
 )]
+#[tracing::instrument(skip_all, fields(slug = %payload.slug), err)]
 pub async fn handler(
     _: OrganizationsPath,
-    State(_state): State<AppState>,
-    Json(_payload): Json<CreateOrganizationRequest>,
+    State(state): State<AppState>,
+    Extension(identity): Extension<Identity>,
+    Json(payload): Json<CreateOrganizationRequest>,
 ) -> Result<Response<OrganizationResponse>, ApiError> {
-    todo!("create organization: build CreateOrganizationCommand and call usecase")
+    let command = CreateOrganizationCommand {
+        name: payload.name,
+        slug: payload.slug,
+        owner_id: identity.user_id()?,
+    };
+
+    let org = state.usecase.create_organization(command).await?;
+
+    Ok(Response::Created(org.into()))
 }

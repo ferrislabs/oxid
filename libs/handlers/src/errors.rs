@@ -2,6 +2,7 @@ use axum::{
     Json,
     response::{IntoResponse, Response},
 };
+use common::CoreError;
 use http::StatusCode;
 use serde::Serialize;
 use thiserror::Error;
@@ -151,6 +152,23 @@ impl ApiError {
             Self::Internal => "INTERNAL_SERVER_ERROR",
             Self::Database => "DATABASE_ERROR",
             Self::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
+        }
+    }
+}
+
+impl From<CoreError> for ApiError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::NotFound => Self::NotFound,
+            CoreError::Conflict(msg) => Self::Conflict(msg),
+            CoreError::Database(msg) => {
+                tracing::error!(error = %msg, "core database error");
+                Self::Database
+            }
+            CoreError::Internal(msg) => {
+                tracing::error!(error = %msg, "core internal error");
+                Self::Internal
+            }
         }
     }
 }
@@ -325,6 +343,42 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR,
             "EXTERNAL_SERVICE_ERROR"
         );
+    }
+
+    #[tokio::test]
+    async fn from_core_error_not_found_maps_to_404() {
+        let api: ApiError = CoreError::NotFound.into();
+        assert_error!(api, StatusCode::NOT_FOUND, "NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn from_core_error_conflict_preserves_message() {
+        let api: ApiError = CoreError::Conflict("slug taken".into()).into();
+        let (status, json) = parse_response(api).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(json["code"], "CONFLICT");
+        assert!(json["message"].as_str().unwrap().contains("slug taken"));
+    }
+
+    #[tokio::test]
+    async fn from_core_error_database_maps_to_500_database() {
+        let api: ApiError = CoreError::Database("connection lost".into()).into();
+        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR");
+    }
+
+    #[tokio::test]
+    async fn from_core_error_internal_maps_to_500_internal() {
+        let api: ApiError = CoreError::Internal("boom".into()).into();
+        assert_error!(api, StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+    }
+
+    #[tokio::test]
+    async fn from_core_error_redacts_internal_message() {
+        // Internal/Database details must not leak through the public message.
+        let api: ApiError = CoreError::Database("password=hunter2".into()).into();
+        let (_, json) = parse_response(api).await;
+        let message = json["message"].as_str().unwrap();
+        assert!(!message.contains("hunter2"));
     }
 
     #[tokio::test]
