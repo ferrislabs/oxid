@@ -1891,9 +1891,11 @@ name = "iam"
 version = "0.1.0"
 dependencies = [
  "mockall",
+ "reqwest",
  "serde",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

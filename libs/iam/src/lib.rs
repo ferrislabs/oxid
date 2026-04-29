@@ -10,6 +10,7 @@
 //! See issue #19 for the broader design context.
 
 pub mod domain;
+pub mod infrastructure;
 
 pub use domain::{
     errors::IamError,
