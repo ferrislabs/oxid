@@ -11,3 +11,7 @@ pub struct OrganizationsPath;
 pub struct OrganizationPath {
     pub organization_id: OrganizationId,
 }
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/api/v1/users/@me/organizations")]
+pub struct CurrentUserOrganizationsPath;
