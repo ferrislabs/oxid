@@ -17,7 +17,8 @@ use crate::domain::{
 /// Implementations must be safe to share across tasks (`Send + Sync`).
 /// Calls are expected to be **idempotent** when the inputs allow it
 /// (creates with a stable external id, deletes of an unknown id, ...).
-pub trait Iam: Send + Sync {
+#[cfg_attr(test, mockall::automock)]
+pub trait IamProvider: Send + Sync {
     // --- Users -----------------------------------------------------------
 
     fn create_user(
@@ -31,10 +32,7 @@ pub trait Iam: Send + Sync {
         command: IamUpdateUser,
     ) -> impl Future<Output = Result<IamUser, IamError>> + Send;
 
-    fn delete_user(
-        &self,
-        id: &IamUserId,
-    ) -> impl Future<Output = Result<(), IamError>> + Send;
+    fn delete_user(&self, id: &IamUserId) -> impl Future<Output = Result<(), IamError>> + Send;
 
     fn find_user(
         &self,
@@ -97,10 +95,7 @@ pub trait Iam: Send + Sync {
         command: IamUpdateRole,
     ) -> impl Future<Output = Result<IamRole, IamError>> + Send;
 
-    fn delete_role(
-        &self,
-        id: &IamRoleId,
-    ) -> impl Future<Output = Result<(), IamError>> + Send;
+    fn delete_role(&self, id: &IamRoleId) -> impl Future<Output = Result<(), IamError>> + Send;
 
     fn list_roles(
         &self,
@@ -118,4 +113,34 @@ pub trait Iam: Send + Sync {
         user: &IamUserId,
         role: &IamRoleId,
     ) -> impl Future<Output = Result<(), IamError>> + Send;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn mock_iam_provider_records_expectations() {
+        let mut mock = MockIamProvider::new();
+        mock.expect_find_user_by_email().times(1).returning(|_| {
+            Box::pin(async {
+                Ok(Some(IamUser {
+                    id: IamUserId("u-1".into()),
+                    email: "alice@example.com".into(),
+                    username: "alice".into(),
+                    name: None,
+                    email_verified: true,
+                    enabled: true,
+                }))
+            })
+        });
+
+        let user = mock
+            .find_user_by_email("alice@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(user.username, "alice");
+    }
 }

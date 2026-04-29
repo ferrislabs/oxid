@@ -7,3 +7,7 @@ edition.workspace = true
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+mockall = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }

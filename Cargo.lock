@@ -1890,8 +1890,10 @@ dependencies = [
 name = "iam"
 version = "0.1.0"
 dependencies = [
+ "mockall",
  "serde",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

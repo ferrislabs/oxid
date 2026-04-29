@@ -2,10 +2,10 @@
 //! provider (e.g. Ferriskey, Keycloak).
 //!
 //! This crate currently exposes the **domain layer only**: a port trait
-//! ([`Iam`]) expressed in terms of domain DTOs ([`IamUser`], [`IamOrganization`],
-//! [`IamRole`]) and a typed error ([`IamError`]). Concrete adapters live in
-//! separate crates so that use-cases stay decoupled from the wire protocol of
-//! any specific IAM.
+//! ([`IamProvider`]) expressed in terms of domain DTOs ([`IamUser`],
+//! [`IamOrganization`], [`IamRole`]) and a typed error ([`IamError`]).
+//! Concrete adapters live in separate crates so that use-cases stay
+//! decoupled from the wire protocol of any specific IAM.
 //!
 //! See issue #19 for the broader design context.
 
@@ -18,5 +18,5 @@ pub use domain::{
         role::{IamCreateRole, IamRole, IamRoleId, IamUpdateRole},
         user::{IamCreateUser, IamUpdateUser, IamUser, IamUserId},
     },
-    ports::Iam,
+    ports::IamProvider,
 };
