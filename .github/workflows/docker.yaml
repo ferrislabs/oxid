@@ -25,8 +25,56 @@ permissions:
   contents: read
   packages: write
 
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  # Avoid contention with the host-level lock when several cargo invocations
+  # run back-to-back in the same job.
+  CARGO_INCREMENTAL: 0
+
 jobs:
+  rust-check:
+    name: rust (${{ matrix.task }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: fmt
+            cmd: cargo fmt --all -- --check
+          - task: clippy
+            cmd: cargo clippy --workspace --all-targets --locked -- -D warnings
+          - task: test
+            cmd: cargo test --workspace --locked
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: cache cargo + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Each task gets its own cache slot — clippy and test compile
+          # different artefact sets, sharing one cache trashes hit-rate.
+          shared-key: rust-${{ matrix.task }}
+          # Keep deps cached even when the task itself fails: the next run
+          # only has to recompile the fix, not the full dependency graph.
+          cache-on-failure: true
+          # fmt does not touch target/, skip caching it for that job.
+          cache-targets: ${{ matrix.task != 'fmt' }}
+
+      - name: ${{ matrix.task }}
+        env:
+          SQLX_OFFLINE: "true"
+        run: ${{ matrix.cmd }}
+
   build:
+    needs: rust-check
     runs-on: ${{ matrix.runner.name }}
     strategy:
       matrix:
@@ -37,6 +85,7 @@ jobs:
             platform: linux/arm64
         target:
           - webapp
+          - api
     steps:
       - name: checkout
         uses: actions/checkout@v5
@@ -118,6 +167,7 @@ jobs:
       matrix:
         target:
           - webapp
+          - api
     steps:
       - name: set up builx
         uses: docker/setup-buildx-action@v3
