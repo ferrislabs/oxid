@@ -52,9 +52,9 @@ mod tests {
     #[test]
     fn parse_defaults() {
         let cmd = Cmd::try_parse_from(["cmd"]).unwrap();
-        assert_eq!(cmd.auth.issuer, "http://localhost:8888/realms/aether");
-        assert_eq!(cmd.auth.client_id, "aether");
-        assert_eq!(cmd.auth.client_secret, "aether");
+        assert_eq!(cmd.auth.issuer, "http://localhost:8888/realms/oxid");
+        assert_eq!(cmd.auth.client_id, "oxid");
+        assert_eq!(cmd.auth.client_secret, "oxid");
     }
 
     #[test]
