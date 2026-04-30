@@ -14,7 +14,7 @@ pub struct DatabaseArgs {
     #[arg(
         long = "database-name",
         env = "DATABASE_NAME",
-        default_value = "aether",
+        default_value = "oxid",
         name = "DATABASE_NAME",
         long_help = "The database name to use"
     )]
@@ -22,7 +22,7 @@ pub struct DatabaseArgs {
     #[arg(
         long = "database-password",
         env = "DATABASE_PASSWORD",
-        default_value = "aether",
+        default_value = "oxid",
         name = "DATABASE_PASSWORD",
         long_help = "The database password to use"
     )]
@@ -38,7 +38,7 @@ pub struct DatabaseArgs {
     #[arg(
         long = "database-user",
         env = "DATABASE_USER",
-        default_value = "aether",
+        default_value = "oxid",
         name = "DATABASE_USER",
         long_help = "The database user to use"
     )]
@@ -49,10 +49,10 @@ impl Default for DatabaseArgs {
     fn default() -> Self {
         Self {
             host: "localhost".to_string(),
-            name: "aether".to_string(),
-            password: "aether".to_string(),
+            name: "oxid".to_string(),
+            password: "oxid".to_string(),
             port: 5432,
-            user: "aether".to_string(),
+            user: "oxid".to_string(),
         }
     }
 }
@@ -92,10 +92,10 @@ mod tests {
     fn default_values() {
         let args = DatabaseArgs::default();
         assert_eq!(args.host, "localhost");
-        assert_eq!(args.name, "aether");
-        assert_eq!(args.password, "aether");
+        assert_eq!(args.name, "oxid");
+        assert_eq!(args.password, "oxid");
         assert_eq!(args.port, 5432);
-        assert_eq!(args.user, "aether");
+        assert_eq!(args.user, "oxid");
     }
 
     #[test]

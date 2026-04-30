@@ -6,8 +6,7 @@ use tokio::sync::RwLock;
 use crate::{
     IamCreateOrganization, IamCreateRole, IamCreateUser, IamError, IamOrgId, IamOrganization,
     IamProvider, IamRole, IamRoleId, IamUpdateOrganization, IamUpdateRole, IamUpdateUser, IamUser,
-    IamUserId,
-    infrastructure::ferriskey::config::FerriskeyConfig,
+    IamUserId, infrastructure::ferriskey::config::FerriskeyConfig,
 };
 
 /// Cached service-account access token.
@@ -34,7 +33,9 @@ struct TokenCache {
 #[derive(Clone)]
 pub struct FerriskeyIamProvider {
     config: FerriskeyConfig,
+    #[allow(unused)]
     http: Client,
+    #[allow(unused)]
     token: Arc<RwLock<TokenCache>>,
 }
 
@@ -109,10 +110,7 @@ impl IamProvider for FerriskeyIamProvider {
         Err(IamError::Internal(NOT_IMPLEMENTED.into()))
     }
 
-    async fn find_organization(
-        &self,
-        _id: &IamOrgId,
-    ) -> Result<Option<IamOrganization>, IamError> {
+    async fn find_organization(&self, _id: &IamOrgId) -> Result<Option<IamOrganization>, IamError> {
         Err(IamError::Internal(NOT_IMPLEMENTED.into()))
     }
 
