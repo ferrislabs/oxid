@@ -224,8 +224,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{UserId, domain::organization::ports::MockOrganizationRepository};
-    use chrono::DateTime;
+    use crate::{
+        User, UserId,
+        domain::{
+            member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
+            role::ports::MockRoleRepository, user::ports::MockUserRepository,
+        },
+    };
     use mockall::predicate::eq;
     use uuid::Uuid;
 
@@ -471,126 +476,6 @@ mod tests {
         let orgs = service.list_organizations_for_user(user_id).await.unwrap();
 
         assert!(orgs.is_empty());
-    }
-
-    use crate::{
-        User,
-        domain::{
-            member::ports::MockMemberRepository, role::ports::MockRoleRepository,
-            user::ports::MockUserRepository,
-        },
-    };
-
-    struct MockRepos {
-        org: MockOrganizationRepository,
-        role: MockRoleRepository,
-        member: MockMemberRepository,
-        user: MockUserRepository,
-    }
-
-    impl MockRepos {
-        fn new() -> Self {
-            Self {
-                org: MockOrganizationRepository::new(),
-                role: MockRoleRepository::new(),
-                member: MockMemberRepository::new(),
-                user: MockUserRepository::new(),
-            }
-        }
-    }
-
-    impl OrganizationRepository for MockRepos {
-        async fn insert(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
-            self.org.insert(organization).await
-        }
-
-        async fn find_by_id(
-            &mut self,
-            id: OrganizationId,
-        ) -> Result<Option<Organization>, CoreError> {
-            self.org.find_by_id(id).await
-        }
-
-        async fn list_for_user(&mut self, user_id: UserId) -> Result<Vec<Organization>, CoreError> {
-            self.org.list_for_user(user_id).await
-        }
-
-        async fn update(&mut self, organization: &Organization) -> Result<Organization, CoreError> {
-            self.org.update(organization).await
-        }
-
-        async fn soft_delete(
-            &mut self,
-            id: OrganizationId,
-            deleted_at: DateTime<Utc>,
-        ) -> Result<(), CoreError> {
-            self.org.soft_delete(id, deleted_at).await
-        }
-    }
-
-    impl RoleRepository for MockRepos {
-        async fn insert(&mut self, role: &Role) -> Result<Role, CoreError> {
-            self.role.insert(role).await
-        }
-        async fn list_by_organization(
-            &mut self,
-            organization_id: OrganizationId,
-        ) -> Result<Vec<Role>, CoreError> {
-            self.role.list_by_organization(organization_id).await
-        }
-    }
-
-    impl MemberRepository for MockRepos {
-        async fn insert(&mut self, member: &Member) -> Result<Member, CoreError> {
-            self.member.insert(member).await
-        }
-
-        async fn list_by_organization(
-            &mut self,
-            organization_id: OrganizationId,
-        ) -> Result<Vec<Member>, CoreError> {
-            self.member.list_by_organization(organization_id).await
-        }
-
-        async fn assign_role(
-            &mut self,
-            member_id: MemberId,
-            role_id: RoleId,
-        ) -> Result<(), CoreError> {
-            self.member.assign_role(member_id, role_id).await
-        }
-
-        async fn find_by_org_and_user(
-            &mut self,
-            organization_id: OrganizationId,
-            user_id: UserId,
-        ) -> Result<Option<Member>, CoreError> {
-            self.member
-                .find_by_org_and_user(organization_id, user_id)
-                .await
-        }
-
-        async fn remove(&mut self, member_id: MemberId) -> Result<(), CoreError> {
-            self.member.remove(member_id).await
-        }
-
-        async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
-            self.member.list_role_ids(member_id).await
-        }
-    }
-
-    impl UserRepository for MockRepos {
-        async fn upsert_by_email(&mut self, user: &User) -> Result<User, CoreError> {
-            self.user.upsert_by_email(user).await
-        }
-
-        async fn find_by_email(&mut self, email: &str) -> Result<Option<User>, CoreError> {
-            self.user.find_by_email(email).await
-        }
-
-        async fn find_by_sub(&mut self, sub: &str) -> Result<Option<User>, CoreError> {
-            self.user.find_by_sub(sub).await
-        }
     }
 
     fn create_cmd() -> CreateOrganizationCommand {

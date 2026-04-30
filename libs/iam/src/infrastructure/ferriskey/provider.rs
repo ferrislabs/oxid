@@ -33,7 +33,9 @@ struct TokenCache {
 #[derive(Clone)]
 pub struct FerriskeyIamProvider {
     config: FerriskeyConfig,
+    #[allow(unused)]
     http: Client,
+    #[allow(unused)]
     token: Arc<RwLock<TokenCache>>,
 }
 
