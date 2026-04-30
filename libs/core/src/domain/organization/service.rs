@@ -17,8 +17,11 @@ fn map_organization_conflict(err: CoreError) -> CoreError {
     }
 }
 
+use authz::{Authorizer, Resource};
+
 use crate::{
     UserId,
+    application::policy,
     domain::{
         member::{Member, MemberId, ports::MemberRepository},
         organization::{
@@ -34,37 +37,42 @@ use crate::{
     },
 };
 
-pub struct OrganizationService<O, R, M, U>
+pub struct OrganizationService<O, R, M, U, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
     U: UserRepository,
+    A: Authorizer,
 {
     organization_repository: O,
     role_repository: R,
     member_repository: M,
     user_repository: U,
+    authz: A,
 }
 
-impl<O, R, M, U> OrganizationService<O, R, M, U>
+impl<O, R, M, U, A> OrganizationService<O, R, M, U, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
     U: UserRepository,
+    A: Authorizer,
 {
     pub fn new(
         organization_repository: O,
         role_repository: R,
         member_repository: M,
         user_repository: U,
+        authz: A,
     ) -> Self {
         Self {
             organization_repository,
             role_repository,
             member_repository,
             user_repository,
+            authz,
         }
     }
 
@@ -92,12 +100,32 @@ where
         &mut self,
         command: UpdateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
+        // 1. Load — required to authorize against actual org context.
         let mut organization = self
             .organization_repository
             .find_by_id(command.id)
             .await?
             .ok_or(CoreError::NotFound)?;
 
+        // 2. Authorize — enrich the actor with the org membership /
+        //    aggregated permission bitfield, then ask the policy engine.
+        let actor = policy::enrich_for_organization(
+            command.actor,
+            organization.id,
+            &mut self.member_repository,
+            &mut self.role_repository,
+        )
+        .await?;
+        policy::require(
+            &self.authz,
+            &actor,
+            "organization.update",
+            Resource::new("organization", organization.id.0.to_string())
+                .with_property("oxid.slug", organization.slug.clone()),
+        )
+        .await?;
+
+        // 3. Mutate.
         organization.name = command.name;
         organization.slug = command.slug;
         organization.updated_at = Utc::now();
@@ -226,11 +254,13 @@ mod tests {
     use super::*;
     use crate::{
         User, UserId,
+        application::policy,
         domain::{
             member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
             role::ports::MockRoleRepository, user::ports::MockUserRepository,
         },
     };
+    use authz::{Decision, MockAuthorizer};
     use mockall::predicate::eq;
     use uuid::Uuid;
 
@@ -245,6 +275,48 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
+    }
+
+    /// Subject built the way the API handler will build it: `oxid.user_id`
+    /// is set, no IAM roles, no org context yet (the service enriches it).
+    fn actor_for(user_id: UserId) -> authz::Subject {
+        policy::user_subject(user_id, Vec::new())
+    }
+
+    /// Stages the calls `policy::enrich_for_organization` makes: lookup
+    /// the member, list its role ids, list the org's roles. The roles
+    /// list is left empty so aggregated permissions = 0; tests that rely
+    /// on the engine answering `allow`/`deny` go through MockAuthorizer.
+    fn stage_org_membership(
+        members: &mut MockMemberRepository,
+        roles: &mut MockRoleRepository,
+        org_id: OrganizationId,
+        user_id: UserId,
+        member_id: MemberId,
+    ) {
+        members
+            .expect_find_by_org_and_user()
+            .with(eq(org_id), eq(user_id))
+            .times(1)
+            .returning(move |organization_id, user_id| {
+                let m = Member {
+                    id: member_id,
+                    organization_id,
+                    user_id,
+                    joined_at: Utc::now(),
+                };
+                Box::pin(async move { Ok(Some(m)) })
+            });
+        members
+            .expect_list_role_ids()
+            .with(eq(member_id))
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
+        roles
+            .expect_list_by_organization()
+            .with(eq(org_id))
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
     }
 
     #[tokio::test]
@@ -267,6 +339,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
         let err = service.get_organization(id).await.unwrap_err();
 
@@ -296,6 +369,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let org = service.get_organization(id).await.unwrap();
@@ -306,10 +380,12 @@ mod tests {
     #[tokio::test]
     async fn update_organization_mutates_and_saves() {
         let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
+        let member_id = MemberId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        let role_repository = MockRoleRepository::new();
-        let member_repository = MockMemberRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
         let user_repository = MockUserRepository::new();
 
         organization_repository
@@ -320,6 +396,13 @@ mod tests {
                 let org = fixture(id);
                 Box::pin(async move { Ok(Some(org)) })
             });
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            member_id,
+        );
         organization_repository
             .expect_update()
             .times(1)
@@ -336,15 +419,23 @@ mod tests {
                 Box::pin(async move { Ok(cloned) })
             });
 
+        let mut authz = MockAuthorizer::new();
+        authz
+            .expect_evaluate()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Decision::allow()) }));
+
         let mut service = OrganizationService::new(
             organization_repository,
             role_repository,
             member_repository,
             user_repository,
+            authz,
         );
 
         let updated = service
             .update_organization(UpdateOrganizationCommand {
+                actor: actor_for(user_id),
                 id,
                 name: "Acme Inc.".into(),
                 slug: "acme-inc".into(),
@@ -376,10 +467,12 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let err = service
             .update_organization(UpdateOrganizationCommand {
+                actor: actor_for(UserId(Uuid::new_v4())),
                 id,
                 name: "Whatever".into(),
                 slug: "whatever".into(),
@@ -388,6 +481,111 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
+    }
+
+    #[tokio::test]
+    async fn update_organization_returns_forbidden_when_not_a_member() {
+        let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
+            .with(eq(id))
+            .times(1)
+            .returning(move |id| {
+                let org = fixture(id);
+                Box::pin(async move { Ok(Some(org)) })
+            });
+        member_repository
+            .expect_find_by_org_and_user()
+            .with(eq(id), eq(user_id))
+            .times(1)
+            .returning(|_, _| Box::pin(async { Ok(None) }));
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+            MockAuthorizer::new(),
+        );
+
+        let err = service
+            .update_organization(UpdateOrganizationCommand {
+                actor: actor_for(user_id),
+                id,
+                name: "Acme Inc.".into(),
+                slug: "acme-inc".into(),
+            })
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, CoreError::Forbidden { .. }));
+    }
+
+    #[tokio::test]
+    async fn update_organization_returns_forbidden_when_authz_denies() {
+        let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
+        let member_id = MemberId(Uuid::new_v4());
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+        let user_repository = MockUserRepository::new();
+
+        organization_repository
+            .expect_find_by_id()
+            .with(eq(id))
+            .times(1)
+            .returning(move |id| {
+                let org = fixture(id);
+                Box::pin(async move { Ok(Some(org)) })
+            });
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            member_id,
+        );
+        // No `expect_update` — the call must short-circuit before mutation.
+
+        let mut authz = MockAuthorizer::new();
+        authz
+            .expect_evaluate()
+            .withf(move |req| {
+                req.action.name == "organization.update"
+                    && req.resource.r#type == "organization"
+                    && req.resource.id == id.0.to_string()
+            })
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Decision::deny()) }));
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+            authz,
+        );
+
+        let err = service
+            .update_organization(UpdateOrganizationCommand {
+                actor: actor_for(user_id),
+                id,
+                name: "Acme Inc.".into(),
+                slug: "acme-inc".into(),
+            })
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, CoreError::Forbidden { .. }));
     }
 
     #[tokio::test]
@@ -419,6 +617,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         service.soft_delete_organization(id).await.unwrap();
@@ -444,6 +643,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let err = service.soft_delete_organization(id).await.unwrap_err();
@@ -471,6 +671,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let orgs = service.list_organizations_for_user(user_id).await.unwrap();
@@ -558,6 +759,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let org = service.create_organization(create_cmd()).await.unwrap();
@@ -604,6 +806,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         let err = service.create_organization(create_cmd()).await.unwrap_err();
@@ -653,6 +856,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         service.leave_organization(org_id, owner_id).await.unwrap();
@@ -713,6 +917,7 @@ mod tests {
             role_repository,
             member_repository,
             user_repository,
+            MockAuthorizer::new(),
         );
 
         service.leave_organization(org_id, leaver_id).await.unwrap();

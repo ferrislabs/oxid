@@ -104,18 +104,26 @@ impl Parse for KeyValue {
 /// `registry::domain::*`, and resolved via the active [`Backend`] alias to its
 /// concrete repository. The resulting binding is named `{name}_repository`.
 ///
+/// The special name `authz` is reserved: it does not refer to a repository
+/// but to `self.authz` (the use-case's [`Authorizer`]). The macro emits a
+/// `let authz = &self.authz;` binding that callers pass to services generic
+/// over `A: Authorizer`.
+///
 /// # Conventions
 /// - `self` must have a `pool: PgPool` field.
-/// - Each listed domain must have a registered impl (see `#[repository]`).
+/// - When `authz` is listed, `self` must also have an `authz` field whose
+///   type implements [`authz::Authorizer`].
+/// - Each listed domain (other than `authz`) must have a registered impl
+///   (see `#[repository]`).
 ///
 /// # Examples
 /// ```ignore
-/// #[transactional(organization, role, member)]
-/// pub async fn create_organization(&self, cmd: ...) -> Result<...> {
+/// #[transactional(organization, role, member, authz)]
+/// pub async fn update_organization(&self, cmd: ...) -> Result<...> {
 ///     let mut service = OrganizationService::new(
-///         organization_repository, role_repository, member_repository,
+///         organization_repository, role_repository, member_repository, authz,
 ///     );
-///     service.create_organization(cmd).await
+///     service.update_organization(cmd).await
 /// }
 ///
 /// #[transactional]
@@ -132,6 +140,11 @@ pub fn transactional(args: TokenStream, input: TokenStream) -> TokenStream {
     } = parse_macro_input!(input as ItemFn);
 
     let bindings = repos.names.iter().map(|name| {
+        if name == "authz" {
+            // Non-repository binding: expose `&self.authz` under the name
+            // `authz` for the wrapped body.
+            return quote! { let authz = &self.authz; };
+        }
         let binding = Ident::new(&format!("{name}_repository"), name.span());
         let domain_ty = Ident::new(&pascal_case(&name.to_string()), name.span());
         quote! {

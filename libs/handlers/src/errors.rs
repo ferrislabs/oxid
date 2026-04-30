@@ -163,6 +163,7 @@ impl From<CoreError> for ApiError {
         match err {
             CoreError::NotFound => Self::NotFound,
             CoreError::Conflict(msg) => Self::Conflict(msg),
+            CoreError::Forbidden { .. } => Self::Forbidden,
             CoreError::Database(msg) => {
                 tracing::error!(error = %msg, "core database error");
                 Self::Database

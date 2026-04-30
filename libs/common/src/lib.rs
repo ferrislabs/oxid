@@ -37,6 +37,12 @@ pub enum CoreError {
     #[error("conflict: {0}")]
     Conflict(String),
 
+    /// The actor was authenticated but the policy engine refused the
+    /// action. `reason` carries an optional, human-readable explanation
+    /// for logs and (when safe) for the API response.
+    #[error("forbidden{}", .reason.as_ref().map(|r| format!(": {r}")).unwrap_or_default())]
+    Forbidden { reason: Option<String> },
+
     #[error("database error: {0}")]
     Database(String),
 
