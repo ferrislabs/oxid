@@ -1,5 +1,33 @@
-use serde::Serialize;
-use utoipa::ToSchema;
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+
+pub const DEFAULT_PER_PAGE: u64 = 20;
+pub const MAX_PER_PAGE: u64 = 100;
+
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct PaginationParams {
+    #[serde(default)]
+    pub page: Option<u64>,
+    #[serde(default)]
+    pub per_page: Option<u64>,
+}
+
+impl PaginationParams {
+    pub fn page(&self) -> u64 {
+        self.page.unwrap_or(1).max(1)
+    }
+
+    pub fn per_page(&self) -> u64 {
+        self.per_page
+            .unwrap_or(DEFAULT_PER_PAGE)
+            .clamp(1, MAX_PER_PAGE)
+    }
+
+    pub fn offset(&self) -> u64 {
+        (self.page() - 1) * self.per_page()
+    }
+}
 
 #[derive(Debug, Serialize, PartialEq, ToSchema)]
 pub struct PaginationMetadata {

@@ -1,5 +1,7 @@
-use axum::extract::State;
-use handlers::{ApiError, AppState, DataEnvelope, Response};
+use axum::extract::{Query, State};
+use handlers::{
+    ApiError, AppState, DataEnvelope, Page, PaginationMetadata, PaginationParams, Response,
+};
 
 use crate::{paths::OrganizationsPath, response::OrganizationResponse};
 
@@ -8,17 +10,31 @@ use crate::{paths::OrganizationsPath, response::OrganizationResponse};
     path = "/api/v1/organizations",
     operation_id = "listOrganizations",
     tag = super::TAG,
+    params(PaginationParams),
     responses(
-        (status = 200, description = "List organizations the caller belongs to", body = inline(DataEnvelope<Vec<OrganizationResponse>>)),
+        (status = 200, description = "Paginated list of organizations", body = inline(DataEnvelope<Vec<OrganizationResponse>>)),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer_auth" = []))
 )]
+#[tracing::instrument(skip_all, fields(page = pagination.page(), per_page = pagination.per_page()), err)]
 pub async fn handler(
     _: OrganizationsPath,
-    State(_state): State<AppState>,
-) -> Result<Response<Vec<OrganizationResponse>>, ApiError> {
-    let t: Vec<OrganizationResponse> = Vec::new();
+    State(state): State<AppState>,
+    Query(pagination): Query<PaginationParams>,
+) -> Result<Response<OrganizationResponse>, ApiError> {
+    let per_page = pagination.per_page();
+    let page = pagination.page();
+    let offset = pagination.offset();
 
-    Ok(Response::OK(t))
+    let (organizations, total) = state.usecase.list_organizations(per_page, offset).await?;
+
+    let items: Vec<OrganizationResponse> = organizations
+        .into_iter()
+        .map(OrganizationResponse::from)
+        .collect();
+    let is_empty = items.is_empty();
+    let meta = PaginationMetadata::new(per_page, page, Some(total), is_empty);
+
+    Ok(Response::Paginated(Page::new(items, meta)))
 }

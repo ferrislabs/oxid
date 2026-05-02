@@ -95,6 +95,17 @@ where
         self.organization_repository.list_for_user(user_id).await
     }
 
+    #[tracing::instrument(skip(self), err)]
+    pub async fn list_organizations(
+        &mut self,
+        limit: u64,
+        offset: u64,
+    ) -> Result<(Vec<Organization>, u64), CoreError> {
+        self.organization_repository
+            .list_paginated(limit, offset)
+            .await
+    }
+
     #[tracing::instrument(skip(self), fields(organization_id = %command.id.0, organization.slug = %command.slug), err)]
     pub async fn update_organization(
         &mut self,
