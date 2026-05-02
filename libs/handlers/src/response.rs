@@ -34,6 +34,7 @@ pub enum Response<T: Serialize + PartialEq> {
     Created(T),
     NoContent,
     Accepted(T),
+    Paginated(Page<T>),
 }
 
 impl<T: Serialize + PartialEq> IntoResponse for Response<T> {
@@ -47,6 +48,9 @@ impl<T: Serialize + PartialEq> IntoResponse for Response<T> {
                 (StatusCode::ACCEPTED, Json(DataEnvelope::new(data))).into_response()
             }
             Response::NoContent => (StatusCode::NO_CONTENT, Body::empty()).into_response(),
+            Response::Paginated(page) => {
+                (StatusCode::OK, Json(DataEnvelope::from(page))).into_response()
+            }
         }
     }
 }

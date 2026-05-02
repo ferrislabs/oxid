@@ -55,6 +55,22 @@ impl OxidUseCase {
     }
 
     #[transactional(organization, role, member, user, authz)]
+    pub async fn list_organizations(
+        &self,
+        limit: u64,
+        offset: u64,
+    ) -> Result<(Vec<Organization>, u64), CoreError> {
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            user_repository,
+            authz,
+        );
+        service.list_organizations(limit, offset).await
+    }
+
+    #[transactional(organization, role, member, user, authz)]
     pub async fn update_organization(
         &self,
         command: UpdateOrganizationCommand,

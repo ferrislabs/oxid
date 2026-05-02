@@ -23,6 +23,12 @@ pub trait OrganizationRepository: Send {
         user_id: UserId,
     ) -> impl Future<Output = Result<Vec<Organization>, CoreError>> + Send;
 
+    fn list_paginated(
+        &mut self,
+        limit: u64,
+        offset: u64,
+    ) -> impl Future<Output = Result<(Vec<Organization>, u64), CoreError>> + Send;
+
     fn update(
         &mut self,
         organization: &Organization,
