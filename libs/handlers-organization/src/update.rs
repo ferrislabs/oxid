@@ -1,6 +1,7 @@
-use axum::{Json, extract::State};
-use handlers::{ApiError, AppState, DataEnvelope, Response};
-use oxid_core::OrganizationId;
+use auth::Identity;
+use axum::{Extension, Json, extract::State};
+use handlers::{ApiError, AppState, DataEnvelope, IdentityExt, Response};
+use oxid_core::{OrganizationId, UpdateOrganizationCommand, application::policy};
 use serde::Deserialize;
 use utoipa::ToSchema;
 
@@ -31,12 +32,29 @@ pub struct UpdateOrganizationRequest {
     ),
     security(("bearer_auth" = []))
 )]
+#[tracing::instrument(skip_all, err)]
 pub async fn handler(
-    OrganizationPath {
-        organization_id: _organization_id,
-    }: OrganizationPath,
-    State(_state): State<AppState>,
-    Json(_payload): Json<UpdateOrganizationRequest>,
+    OrganizationPath { organization_id }: OrganizationPath,
+    State(state): State<AppState>,
+    Extension(identity): Extension<Identity>,
+    Json(payload): Json<UpdateOrganizationRequest>,
 ) -> Result<Response<OrganizationResponse>, ApiError> {
-    todo!("update organization")
+    let user_id = identity.user_id()?;
+    let iam_roles = match &identity {
+        Identity::User(u) => u.roles.clone(),
+        Identity::Client(c) => c.roles.clone(),
+    };
+    let actor = policy::user_subject(user_id, iam_roles);
+
+    let organization = state
+        .usecase
+        .update_organization(UpdateOrganizationCommand {
+            actor,
+            id: organization_id,
+            name: payload.name,
+            slug: payload.slug,
+        })
+        .await?;
+
+    Ok(Response::OK(organization.into()))
 }

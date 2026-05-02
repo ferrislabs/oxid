@@ -1,27 +1,50 @@
 use auth::{AuthService, FerrisKeyRepository};
+use authz::LocalPolicyEngine;
 use common::{Config, CoreError};
 use rate_limit::{Quota, RateLimitService, RedisRateLimiter};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+use crate::domain::role::Permissions;
 use crate::infrastructure::postgres::error::map_sqlx_error;
 
 pub mod member;
 pub mod organization;
+pub mod policy;
 pub mod role;
 pub mod user;
 
 pub type OxidAuthService = AuthService<FerrisKeyRepository>;
 pub type OxidRateLimitService = RateLimitService<RedisRateLimiter>;
 
+/// In-process Policy Decision Point used by Oxid's services. Aliased so
+/// callers can swap the concrete engine later (e.g. for a remote PDP)
+/// with a single type change.
+pub type OxidAuthorizer = LocalPolicyEngine;
+
+/// Builds the default action → required permission bits map. The bit
+/// values come from [`Permissions`] so the service-side bitfield stays
+/// the single source of truth.
+pub fn default_authorizer() -> OxidAuthorizer {
+    LocalPolicyEngine::builder()
+        .action("organization.update", Permissions::MANAGE_ORG.0)
+        .action("organization.delete", Permissions::MANAGE_ORG.0)
+        .action("member.invite", Permissions::MANAGE_MEMBERS.0)
+        .action("member.remove", Permissions::MANAGE_MEMBERS.0)
+        .action("role.assign", Permissions::MANAGE_ROLES.0)
+        .action("role.manage", Permissions::MANAGE_ROLES.0)
+        .build()
+}
+
 #[derive(Clone)]
 pub struct OxidUseCase {
-    pool: PgPool,
+    pub(crate) pool: PgPool,
+    pub(crate) authz: OxidAuthorizer,
 }
 
 impl OxidUseCase {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool, authz: OxidAuthorizer) -> Self {
+        Self { pool, authz }
     }
 }
 
@@ -74,7 +97,7 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
 
     Ok(OxidService::new(
         auth,
-        OxidUseCase::new(pool),
+        OxidUseCase::new(pool, default_authorizer()),
         rate_limit,
         rate_limit_quota,
     ))
