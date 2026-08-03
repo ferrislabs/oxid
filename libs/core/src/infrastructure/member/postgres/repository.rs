@@ -72,14 +72,23 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "insert", db.table = "member_roles"), err)]
-    async fn assign_role(&mut self, member_id: MemberId, role_id: RoleId) -> Result<(), CoreError> {
+    async fn assign_role(
+        &mut self,
+        organization_id: OrganizationId,
+        member_id: MemberId,
+        role_id: RoleId,
+    ) -> Result<(), CoreError> {
         let mut tx = self.tx.lock().await;
+        // The composite foreign keys reject the row unless both the member and
+        // the role belong to `organization_id`, so a cross-tenant grant fails
+        // here even if a caller asks for one.
         sqlx::query!(
             r#"
-            INSERT INTO member_roles (id, member_id, role_id)
-            VALUES (gen_random_uuid(), $1, $2)
+            INSERT INTO member_roles (id, organization_id, member_id, role_id)
+            VALUES (gen_random_uuid(), $1, $2, $3)
             ON CONFLICT (member_id, role_id) DO NOTHING
             "#,
+            organization_id.0,
             member_id.0,
             role_id.0,
         )
@@ -115,14 +124,19 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "delete", db.table = "organization_members"), err)]
-    async fn remove(&mut self, member_id: MemberId) -> Result<(), CoreError> {
+    async fn remove(
+        &mut self,
+        organization_id: OrganizationId,
+        member_id: MemberId,
+    ) -> Result<(), CoreError> {
         let mut tx = self.tx.lock().await;
         let result = sqlx::query!(
             r#"
             DELETE FROM organization_members
-            WHERE id = $1
+            WHERE id = $1 AND organization_id = $2
             "#,
             member_id.0,
+            organization_id.0,
         )
         .execute(&mut ***tx)
         .await
@@ -135,15 +149,20 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "member_roles"), err)]
-    async fn list_role_ids(&mut self, member_id: MemberId) -> Result<Vec<RoleId>, CoreError> {
+    async fn list_role_ids(
+        &mut self,
+        organization_id: OrganizationId,
+        member_id: MemberId,
+    ) -> Result<Vec<RoleId>, CoreError> {
         let mut tx = self.tx.lock().await;
         let rows = sqlx::query!(
             r#"
             SELECT role_id
             FROM member_roles
-            WHERE member_id = $1
+            WHERE member_id = $1 AND organization_id = $2
             "#,
             member_id.0,
+            organization_id.0,
         )
         .fetch_all(&mut ***tx)
         .await
