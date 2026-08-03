@@ -33,45 +33,39 @@ use crate::{
             ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, OWNER_ROLE_NAME, Permissions, Role, RoleId,
             ports::RoleRepository,
         },
-        user::ports::UserRepository,
     },
 };
 
-pub struct OrganizationService<O, R, M, U, A>
+pub struct OrganizationService<O, R, M, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
-    U: UserRepository,
     A: Authorizer,
 {
     organization_repository: O,
     role_repository: R,
     member_repository: M,
-    user_repository: U,
     authz: A,
 }
 
-impl<O, R, M, U, A> OrganizationService<O, R, M, U, A>
+impl<O, R, M, A> OrganizationService<O, R, M, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
-    U: UserRepository,
     A: Authorizer,
 {
     pub fn new(
         organization_repository: O,
         role_repository: R,
         member_repository: M,
-        user_repository: U,
         authz: A,
     ) -> Self {
         Self {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         }
     }
@@ -165,13 +159,10 @@ where
         command: CreateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
         let now = Utc::now();
+        // `owner_id` is Oxid's own user id, resolved from the OIDC subject by
+        // the authentication middleware. No lookup is needed here: the caller
+        // could not have reached this point without a `users` row.
         let owner_id = command.owner_id;
-
-        let user = self
-            .user_repository
-            .find_by_sub(owner_id.to_string().as_str())
-            .await?
-            .ok_or(CoreError::NotFound)?;
 
         let organization = self
             .organization_repository
@@ -179,7 +170,7 @@ where
                 id: OrganizationId(generate_uuid_v7()),
                 name: command.name,
                 slug: command.slug,
-                owner_id: user.id,
+                owner_id,
                 deleted_at: None,
                 created_at: now,
                 updated_at: now,
@@ -226,7 +217,7 @@ where
             .insert(&Member {
                 id: MemberId(generate_uuid_v7()),
                 organization_id: organization.id,
-                user_id: user.id,
+                user_id: owner_id,
                 joined_at: now,
             })
             .await?;
@@ -264,11 +255,11 @@ where
 mod tests {
     use super::*;
     use crate::{
-        User, UserId,
+        UserId,
         application::policy,
         domain::{
             member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
-            role::ports::MockRoleRepository, user::ports::MockUserRepository,
+            role::ports::MockRoleRepository,
         },
     };
     use authz::{Decision, MockAuthorizer};
@@ -337,7 +328,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -349,7 +339,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
         let err = service.get_organization(id).await.unwrap_err();
@@ -364,7 +353,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -379,7 +367,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -397,7 +384,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -440,7 +426,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         );
 
@@ -465,7 +450,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -477,7 +461,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -502,7 +485,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -522,7 +504,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -548,7 +529,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -582,7 +562,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         );
 
@@ -606,7 +585,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -627,7 +605,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -641,7 +618,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -653,7 +629,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -669,7 +644,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_list_for_user()
@@ -681,7 +655,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -703,24 +676,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let mut user_repository = MockUserRepository::new();
 
-        user_repository
-            .expect_find_by_sub()
-            .times(1)
-            .returning(|s| {
-                let now = Utc::now();
-                let user = User {
-                    id: UserId(Uuid::new_v4()),
-                    email: "owner@example.com".into(),
-                    username: "owner".into(),
-                    name: "Owner".into(),
-                    sub: s.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                };
-                Box::pin(async move { Ok(Some(user)) })
-            });
 
         organization_repository
             .expect_insert()
@@ -769,7 +725,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -785,24 +740,7 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let mut user_repository = MockUserRepository::new();
 
-        user_repository
-            .expect_find_by_sub()
-            .times(1)
-            .returning(|s| {
-                let now = Utc::now();
-                let user = User {
-                    id: UserId(Uuid::new_v4()),
-                    email: "owner@example.com".into(),
-                    username: "owner".into(),
-                    name: "Owner".into(),
-                    sub: s.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                };
-                Box::pin(async move { Ok(Some(user)) })
-            });
 
         // Infra-style payload: constraint name only.
         organization_repository
@@ -816,7 +754,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -836,7 +773,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -866,7 +802,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -883,7 +818,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -927,7 +861,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 

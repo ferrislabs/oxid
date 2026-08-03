@@ -1,6 +1,6 @@
 use auth::Identity;
 use axum::{Extension, Json, extract::State};
-use handlers::{ApiError, AppState, DataEnvelope, IdentityExt, Response};
+use handlers::{ApiError, AppState, AuthenticatedUser, DataEnvelope, Response};
 use oxid_core::{OrganizationId, UpdateOrganizationCommand, application::policy};
 use serde::Deserialize;
 use utoipa::ToSchema;
@@ -37,9 +37,9 @@ pub async fn handler(
     OrganizationPath { organization_id }: OrganizationPath,
     State(state): State<AppState>,
     Extension(identity): Extension<Identity>,
+    Extension(AuthenticatedUser(user_id)): Extension<AuthenticatedUser>,
     Json(payload): Json<UpdateOrganizationRequest>,
 ) -> Result<Response<OrganizationResponse>, ApiError> {
-    let user_id = identity.user_id()?;
     let iam_roles = match &identity {
         Identity::User(u) => u.roles.clone(),
         Identity::Client(c) => c.roles.clone(),

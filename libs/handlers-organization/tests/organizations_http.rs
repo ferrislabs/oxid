@@ -121,13 +121,7 @@ async fn reusing_a_slug_is_a_conflict() {
 
 #[tokio::test]
 #[ignore = "requires docker"]
-async fn an_organization_is_currently_invisible_to_its_own_owner() {
-    // Characterisation of the first-login loop — see issue #30.
-    //
-    // The handler passes the OIDC subject where the query expects the internal
-    // user id, so the join never matches. Once the identifier spaces are
-    // separated this must assert that the organization IS listed, and the test
-    // renamed accordingly.
+async fn an_organization_is_listed_for_its_owner() {
     let api = TestApi::start().await;
     create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
@@ -142,8 +136,8 @@ async fn an_organization_is_currently_invisible_to_its_own_owner() {
     let body: serde_json::Value = response.json().await.expect("json body");
     assert_eq!(
         body["data"].as_array().expect("data is an array").len(),
-        0,
-        "today the owner sees nothing; issue #30 must make this 1"
+        1,
+        "the organization its owner just created must be listed for them"
     );
 }
 
@@ -204,13 +198,7 @@ async fn updating_an_organization_as_a_non_member_is_denied() {
 
 #[tokio::test]
 #[ignore = "requires docker"]
-async fn updating_is_currently_denied_even_to_the_owner() {
-    // Characterisation — see issue #30.
-    //
-    // Membership enrichment compares the OIDC subject against a column holding
-    // internal user ids, so it denies everyone including the owner. Once the
-    // identifier spaces are separated this must assert 200 for the owner, and
-    // the test renamed accordingly.
+async fn an_owner_can_update_their_organization() {
     let api = TestApi::start().await;
     let org_id = create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
@@ -224,8 +212,8 @@ async fn updating_is_currently_denied_even_to_the_owner() {
 
     assert_eq!(
         response.status(),
-        StatusCode::FORBIDDEN,
-        "today even the owner is denied; issue #30 must make this 200"
+        StatusCode::OK,
+        "the owner holds every permission on their own organization"
     );
 }
 
