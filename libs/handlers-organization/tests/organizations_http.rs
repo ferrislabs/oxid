@@ -145,13 +145,11 @@ async fn an_organization_is_listed_for_its_owner() {
 
 #[tokio::test]
 #[ignore = "requires docker"]
-async fn listing_organizations_currently_exposes_every_tenant() {
-    // Characterisation of the cross-tenant leak — see issue #31.
-    //
-    // One database, two callers: Alice creates an organization, Bob is a
-    // stranger to it. The listing endpoint applies no authorization and no
-    // tenant predicate, so Bob sees it. Once scoped, this must assert that
-    // Bob's listing is empty, and the test renamed accordingly.
+async fn the_global_organization_listing_is_no_longer_exposed() {
+    // The endpoint returned every tenant's organizations with no authorization
+    // check at all. It had no working authorization model and no consumer, and
+    // its caller-scoped equivalent already exists, so it was removed rather
+    // than guarded. Creation still lives on this path, hence 405 and not 404.
     let api = TestApi::start().await;
     create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
@@ -162,13 +160,7 @@ async fn listing_organizations_currently_exposes_every_tenant() {
         .await
         .expect("request reaches the api");
 
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: serde_json::Value = response.json().await.expect("json body");
-    assert_eq!(
-        body["data"].as_array().expect("data is an array").len(),
-        1,
-        "Bob is a member of nothing, yet sees Alice's organization"
-    );
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
 }
 
 // --- Update ---------------------------------------------------------------
@@ -215,34 +207,4 @@ async fn an_owner_can_update_their_organization() {
         StatusCode::OK,
         "the owner holds every permission on their own organization"
     );
-}
-
-// --- Pagination -----------------------------------------------------------
-
-#[tokio::test]
-#[ignore = "requires docker"]
-async fn an_out_of_range_page_currently_breaks_the_listing() {
-    // Characterisation — see issue #37.
-    //
-    // The page parameter is unbounded and the offset is computed without
-    // checked arithmetic, so a large page produces a negative OFFSET in release
-    // and a panic in debug. Once bounded, this must assert a client error.
-    let api = TestApi::start().await;
-
-    let response = api
-        .get("/api/v1/organizations?page=18446744073709551615")
-        .bearer_auth(alice_token(&api))
-        .send()
-        .await;
-
-    match response {
-        // Debug profile: the arithmetic panics and the connection is dropped.
-        Err(_) => {}
-        // Release profile: the negative offset reaches Postgres.
-        Ok(r) => assert_eq!(
-            r.status(),
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "issue #37 must turn this into a client error"
-        ),
-    }
 }

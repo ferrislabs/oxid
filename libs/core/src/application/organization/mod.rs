@@ -1,3 +1,4 @@
+use authz::Subject;
 use common::CoreError;
 use oxid_macros::transactional;
 
@@ -27,14 +28,18 @@ impl OxidUseCase {
     }
 
     #[transactional(organization, role, member, authz)]
-    pub async fn get_organization(&self, id: OrganizationId) -> Result<Organization, CoreError> {
+    pub async fn get_organization(
+        &self,
+        actor: Subject,
+        id: OrganizationId,
+    ) -> Result<Organization, CoreError> {
         let mut service = OrganizationService::new(
             organization_repository,
             role_repository,
             member_repository,
             authz,
         );
-        service.get_organization(id).await
+        service.get_organization(actor, id).await
     }
 
     #[transactional(organization, role, member, authz)]
@@ -52,21 +57,6 @@ impl OxidUseCase {
     }
 
     #[transactional(organization, role, member, authz)]
-    pub async fn list_organizations(
-        &self,
-        limit: u64,
-        offset: u64,
-    ) -> Result<(Vec<Organization>, u64), CoreError> {
-        let mut service = OrganizationService::new(
-            organization_repository,
-            role_repository,
-            member_repository,
-            authz,
-        );
-        service.list_organizations(limit, offset).await
-    }
-
-    #[transactional(organization, role, member, authz)]
     pub async fn update_organization(
         &self,
         command: UpdateOrganizationCommand,
@@ -81,19 +71,24 @@ impl OxidUseCase {
     }
 
     #[transactional(organization, role, member, authz)]
-    pub async fn soft_delete_organization(&self, id: OrganizationId) -> Result<(), CoreError> {
+    pub async fn soft_delete_organization(
+        &self,
+        actor: Subject,
+        id: OrganizationId,
+    ) -> Result<(), CoreError> {
         let mut service = OrganizationService::new(
             organization_repository,
             role_repository,
             member_repository,
             authz,
         );
-        service.soft_delete_organization(id).await
+        service.soft_delete_organization(actor, id).await
     }
 
     #[transactional(organization, role, member, authz)]
     pub async fn leave_organization(
         &self,
+        actor: Subject,
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<(), CoreError> {
@@ -103,6 +98,6 @@ impl OxidUseCase {
             member_repository,
             authz,
         );
-        service.leave_organization(organization_id, user_id).await
+        service.leave_organization(actor, organization_id, user_id).await
     }
 }
