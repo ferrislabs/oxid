@@ -1,7 +1,10 @@
-use auth::{AuthService, FerrisKeyRepository};
+use auth::{AuthError, AuthRepository, AuthService, Claims, FerrisKeyRepository, Identity};
 use authz::LocalPolicyEngine;
 use common::{Config, CoreError};
-use rate_limit::{Quota, RateLimitService, RedisRateLimiter};
+use rate_limit::{
+    Quota, RateLimitDecision, RateLimitError, RateLimitKey, RateLimitService, RateLimiter,
+    RedisRateLimiter,
+};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
@@ -14,8 +17,68 @@ pub mod policy;
 pub mod role;
 pub mod user;
 
-pub type OxidAuthService = AuthService<FerrisKeyRepository>;
-pub type OxidRateLimitService = RateLimitService<RedisRateLimiter>;
+/// Authentication adapter chosen at composition time.
+///
+/// Enum dispatch rather than `dyn`: the set of adapters is closed and known at
+/// build time, so the compiler enforces exhaustiveness when a variant is added
+/// and no vtable sits on the request path.
+#[derive(Clone)]
+pub enum OxidAuthRepository {
+    Ferriskey(FerrisKeyRepository),
+
+    /// Fixed identity, for driving the HTTP stack in tests. Compiled only
+    /// under `test-support` so that no production build can link an adapter
+    /// which authenticates unconditionally.
+    #[cfg(feature = "test-support")]
+    Fixed(auth::FixedIdentityRepository),
+}
+
+impl AuthRepository for OxidAuthRepository {
+    async fn validate_token(&self, token: &str) -> Result<Claims, AuthError> {
+        match self {
+            Self::Ferriskey(repo) => repo.validate_token(token).await,
+            #[cfg(feature = "test-support")]
+            Self::Fixed(repo) => repo.validate_token(token).await,
+        }
+    }
+
+    async fn identify(&self, token: &str) -> Result<Identity, AuthError> {
+        match self {
+            Self::Ferriskey(repo) => repo.identify(token).await,
+            #[cfg(feature = "test-support")]
+            Self::Fixed(repo) => repo.identify(token).await,
+        }
+    }
+}
+
+/// Rate limiting adapter chosen at composition time. Same rationale as
+/// [`OxidAuthRepository`].
+#[derive(Clone)]
+pub enum OxidRateLimiter {
+    Redis(RedisRateLimiter),
+
+    /// Always allows. Compiled only under `test-support`; the limiter's real
+    /// behaviour is covered against Redis in the `rate-limit` crate.
+    #[cfg(feature = "test-support")]
+    AlwaysAllow(rate_limit::AlwaysAllowLimiter),
+}
+
+impl RateLimiter for OxidRateLimiter {
+    async fn check(
+        &self,
+        key: &RateLimitKey,
+        quota: Quota,
+    ) -> Result<RateLimitDecision, RateLimitError> {
+        match self {
+            Self::Redis(limiter) => limiter.check(key, quota).await,
+            #[cfg(feature = "test-support")]
+            Self::AlwaysAllow(limiter) => limiter.check(key, quota).await,
+        }
+    }
+}
+
+pub type OxidAuthService = AuthService<OxidAuthRepository>;
+pub type OxidRateLimitService = RateLimitService<OxidRateLimiter>;
 
 /// In-process Policy Decision Point used by Oxid's services. Aliased so
 /// callers can swap the concrete engine later (e.g. for a remote PDP)
@@ -74,7 +137,7 @@ impl OxidService {
 
 pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
     let auth_repo = FerrisKeyRepository::new(config.auth.issuer, None);
-    let auth = AuthService::new(auth_repo);
+    let auth = AuthService::new(OxidAuthRepository::Ferriskey(auth_repo));
 
     let db_url = format!(
         "postgres://{}:{}@{}:{}/{}",
@@ -92,7 +155,7 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
     let limiter = RedisRateLimiter::connect(&config.rate_limit.redis_url)
         .await
         .map_err(|e| CoreError::Internal(format!("redis connection failed: {e}")))?;
-    let rate_limit = RateLimitService::new(limiter);
+    let rate_limit = RateLimitService::new(OxidRateLimiter::Redis(limiter));
     let rate_limit_quota = Quota::per_minute(config.rate_limit.per_minute);
 
     Ok(OxidService::new(

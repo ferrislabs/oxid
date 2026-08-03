@@ -8,3 +8,6 @@ pub use domain::ports::*;
 pub use application::AuthService;
 
 pub use infrastructure::ferriskey::FerrisKeyRepository;
+
+#[cfg(feature = "test-support")]
+pub use infrastructure::fixed::FixedIdentityRepository;
