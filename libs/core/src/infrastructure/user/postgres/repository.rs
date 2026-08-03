@@ -71,22 +71,4 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
         Ok(row.map(Into::into))
     }
 
-    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "users"), err)]
-    async fn find_by_sub(&mut self, sub: &str) -> Result<Option<User>, CoreError> {
-        let mut tx = self.tx.lock().await;
-        let row = sqlx::query_as!(
-            UserRow,
-            r#"
-            SELECT id, email, username, display_name, sub, created_at, updated_at
-            FROM users
-            WHERE sub = $1
-            "#,
-            sub,
-        )
-        .fetch_optional(&mut ***tx)
-        .await
-        .map_err(map_sqlx_error)?;
-
-        Ok(row.map(Into::into))
-    }
 }

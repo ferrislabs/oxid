@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use auth::Identity;
 use axum::{
     extract::{Request, State},
@@ -15,17 +13,20 @@ use crate::{
     state::AppState,
 };
 
-pub trait IdentityExt {
-    /// Parse the identity subject as a `UserId`. Returns `ApiError::Unauthorized`
-    /// when the subject is not a valid UUID (malformed or non-user token).
-    fn user_id(&self) -> Result<UserId, ApiError>;
-}
-
-impl IdentityExt for Identity {
-    fn user_id(&self) -> Result<UserId, ApiError> {
-        UserId::from_str(self.id()).map_err(|_| ApiError::Unauthorized)
-    }
-}
+/// Oxid's own identity for the authenticated caller, resolved from the OIDC
+/// subject by [`auth_middleware`] and carried in the request extensions.
+///
+/// Handlers take this rather than reading the subject off the [`Identity`].
+/// The subject identifies the caller at the identity provider; [`UserId`]
+/// identifies the `users` row that every organization-scoped table points at.
+/// They are different values, and conflating them is precisely what this type
+/// exists to prevent — which is why no conversion from one to the other is
+/// offered anywhere.
+///
+/// Absent for client credentials: a service account has no `users` row, so
+/// handlers requiring a user will not extract it.
+#[derive(Debug, Clone, Copy)]
+pub struct AuthenticatedUser(pub UserId);
 
 pub async fn auth_middleware(
     State(state): State<AppState>,
@@ -52,7 +53,11 @@ pub async fn auth_middleware(
             "unknown"
         });
 
-        if let Err(err) = state
+        // Resolving the subject to a `users` row is what makes the caller
+        // addressable in Oxid's own tables. A failure here leaves us unable to
+        // say who is calling, so it must stop the request rather than let a
+        // handler run against an identity it cannot map.
+        let resolved = state
             .usecase
             .create_user(CreateUserCommand {
                 name: name.to_string(),
@@ -61,9 +66,12 @@ pub async fn auth_middleware(
                 sub: user.id.clone(),
             })
             .await
-        {
-            error!("auth middleware: failed to create user {:?}", err);
-        }
+            .map_err(|err| {
+                error!("auth middleware: failed to resolve user {:?}", err);
+                MiddlewareError::IdentityResolution
+            })?;
+
+        req.extensions_mut().insert(AuthenticatedUser(resolved.id));
     }
 
     req.extensions_mut().insert(identity);

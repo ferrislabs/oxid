@@ -15,6 +15,11 @@ pub enum MiddlewareError {
     InvalidAuthHeader,
     #[error("authentication failed: {0}")]
     AuthenticationFailed(String),
+
+    /// The caller authenticated, but mapping their subject onto a `users` row
+    /// failed. That is a server-side fault, not a rejected credential.
+    #[error("could not resolve the authenticated identity")]
+    IdentityResolution,
 }
 
 impl IntoResponse for MiddlewareError {
@@ -34,6 +39,11 @@ impl IntoResponse for MiddlewareError {
                 StatusCode::UNAUTHORIZED,
                 "E_AUTHENTICATION_FAILED",
                 "Authentication failed",
+            ),
+            MiddlewareError::IdentityResolution => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "E_INTERNAL",
+                "Internal server error",
             ),
         };
 
