@@ -4,9 +4,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[features]
-test-support = []
-
 [dependencies]
 chrono = { workspace = true }
 redis = { workspace = true }

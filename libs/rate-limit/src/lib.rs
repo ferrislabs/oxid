@@ -8,6 +8,3 @@ pub use domain::ports::*;
 pub use application::RateLimitService;
 
 pub use infrastructure::redis::RedisRateLimiter;
-
-#[cfg(feature = "test-support")]
-pub use infrastructure::permissive::AlwaysAllowLimiter;

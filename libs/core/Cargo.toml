@@ -4,9 +4,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[features]
-test-support = ["auth/test-support", "rate-limit/test-support"]
-
 [dependencies]
 common = { workspace = true }
 auth = { workspace = true }

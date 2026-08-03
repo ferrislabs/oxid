@@ -1579,6 +1579,7 @@ dependencies = [
  "clap",
  "handlers",
  "http 1.4.0",
+ "jsonwebtoken",
  "oxid-core",
  "rate-limit",
  "reqwest",

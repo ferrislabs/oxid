@@ -12,19 +12,19 @@
 
 mod harness;
 
-use harness::{TestApi, user_identity};
+use harness::TestApi;
 use http::StatusCode;
 use serde_json::json;
 
 const ALICE: &str = "11111111-1111-4111-8111-111111111111";
 const BOB: &str = "22222222-2222-4222-8222-222222222222";
 
-fn alice() -> auth::Identity {
-    user_identity(ALICE, "alice", "alice@example.com")
+fn alice_token(api: &TestApi) -> String {
+    api.token(ALICE, "alice", "alice@example.com")
 }
 
-fn bob() -> auth::Identity {
-    user_identity(BOB, "bob", "bob@example.com")
+fn bob_token(api: &TestApi) -> String {
+    api.token(BOB, "bob", "bob@example.com")
 }
 
 /// Creates an organization over HTTP, as the caller behind `token`, and
@@ -84,11 +84,11 @@ async fn a_token_the_provider_rejects_is_refused() {
 #[tokio::test]
 #[ignore = "requires docker"]
 async fn an_authenticated_user_can_create_an_organization() {
-    let api = TestApi::start_authenticated_as(alice()).await;
+    let api = TestApi::start().await;
 
     let response = api
         .post("/api/v1/organizations")
-        .bearer_auth("test-token")
+        .bearer_auth(alice_token(&api))
         .json(&json!({ "name": "Acme", "slug": "acme" }))
         .send()
         .await
@@ -103,12 +103,12 @@ async fn an_authenticated_user_can_create_an_organization() {
 #[tokio::test]
 #[ignore = "requires docker"]
 async fn reusing_a_slug_is_a_conflict() {
-    let api = TestApi::start_authenticated_as(alice()).await;
-    create_org(&api, "test-token", "Acme", "acme").await;
+    let api = TestApi::start().await;
+    create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
     let response = api
         .post("/api/v1/organizations")
-        .bearer_auth("test-token")
+        .bearer_auth(alice_token(&api))
         .json(&json!({ "name": "Acme Again", "slug": "acme" }))
         .send()
         .await
@@ -128,12 +128,12 @@ async fn an_organization_is_currently_invisible_to_its_own_owner() {
     // user id, so the join never matches. Once the identifier spaces are
     // separated this must assert that the organization IS listed, and the test
     // renamed accordingly.
-    let api = TestApi::start_authenticated_as(alice()).await;
-    create_org(&api, "test-token", "Acme", "acme").await;
+    let api = TestApi::start().await;
+    create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
     let response = api
         .get("/api/v1/users/@me/organizations")
-        .bearer_auth("test-token")
+        .bearer_auth(alice_token(&api))
         .send()
         .await
         .expect("request reaches the api");
@@ -158,12 +158,12 @@ async fn listing_organizations_currently_exposes_every_tenant() {
     // stranger to it. The listing endpoint applies no authorization and no
     // tenant predicate, so Bob sees it. Once scoped, this must assert that
     // Bob's listing is empty, and the test renamed accordingly.
-    let api = TestApi::start_with_identities([("alice-token", alice()), ("bob-token", bob())]).await;
-    create_org(&api, "alice-token", "Acme", "acme").await;
+    let api = TestApi::start().await;
+    create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
     let response = api
         .get("/api/v1/organizations")
-        .bearer_auth("bob-token")
+        .bearer_auth(bob_token(&api))
         .send()
         .await
         .expect("request reaches the api");
@@ -184,12 +184,12 @@ async fn listing_organizations_currently_exposes_every_tenant() {
 async fn updating_an_organization_as_a_non_member_is_denied() {
     // One database, two callers: Bob genuinely exists and is genuinely not a
     // member of Alice's organization.
-    let api = TestApi::start_with_identities([("alice-token", alice()), ("bob-token", bob())]).await;
-    let org_id = create_org(&api, "alice-token", "Acme", "acme").await;
+    let api = TestApi::start().await;
+    let org_id = create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
     let response = api
         .patch(&format!("/api/v1/organizations/{org_id}"))
-        .bearer_auth("bob-token")
+        .bearer_auth(bob_token(&api))
         .json(&json!({ "name": "Hijacked", "slug": "hijacked" }))
         .send()
         .await
@@ -211,12 +211,12 @@ async fn updating_is_currently_denied_even_to_the_owner() {
     // internal user ids, so it denies everyone including the owner. Once the
     // identifier spaces are separated this must assert 200 for the owner, and
     // the test renamed accordingly.
-    let api = TestApi::start_authenticated_as(alice()).await;
-    let org_id = create_org(&api, "test-token", "Acme", "acme").await;
+    let api = TestApi::start().await;
+    let org_id = create_org(&api, &alice_token(&api), "Acme", "acme").await;
 
     let response = api
         .patch(&format!("/api/v1/organizations/{org_id}"))
-        .bearer_auth("test-token")
+        .bearer_auth(alice_token(&api))
         .json(&json!({ "name": "Acme Renamed", "slug": "acme-renamed" }))
         .send()
         .await
@@ -239,11 +239,11 @@ async fn an_out_of_range_page_currently_breaks_the_listing() {
     // The page parameter is unbounded and the offset is computed without
     // checked arithmetic, so a large page produces a negative OFFSET in release
     // and a panic in debug. Once bounded, this must assert a client error.
-    let api = TestApi::start_authenticated_as(alice()).await;
+    let api = TestApi::start().await;
 
     let response = api
         .get("/api/v1/organizations?page=18446744073709551615")
-        .bearer_auth("test-token")
+        .bearer_auth(alice_token(&api))
         .send()
         .await;
 
