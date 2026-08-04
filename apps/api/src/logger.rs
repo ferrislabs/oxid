@@ -16,11 +16,33 @@ use tracing_subscriber::{
 
 use handlers::ApiError;
 
+/// Keeps the OpenTelemetry logger provider alive for the process's lifetime and
+/// flushes it on shutdown. Previously the provider was leaked with
+/// `mem::forget`, which prevented its `Drop` from ever running: records still
+/// queued in the batch exporter were lost exactly when the process was going
+/// away, which is when they matter most.
+#[must_use = "dropping the guard immediately shuts observability down"]
+pub struct ObservabilityGuard {
+    logger_provider: Option<SdkLoggerProvider>,
+}
+
+impl ObservabilityGuard {
+    /// Flushes and stops the exporter. Called on graceful shutdown.
+    pub fn shutdown(self) {
+        if let Some(provider) = self.logger_provider
+            && let Err(err) = provider.shutdown()
+        {
+            eprintln!("failed to flush pending logs on shutdown: {err}");
+        }
+    }
+}
+
 pub fn init_tracing_and_logging(
     log_args: &LogArgs,
     service_name: &str,
     observability_args: &ObservabilityArgs,
-) -> Result<(), ApiError> {
+) -> Result<ObservabilityGuard, ApiError> {
+    let mut guard = None;
     let filter = EnvFilter::try_new(&log_args.filter).unwrap_or_else(|err| {
         eprint!("invalid log filter: {err}");
         eprint!("using default log filter: info");
@@ -106,7 +128,11 @@ pub fn init_tracing_and_logging(
             .with(filter)
             .init();
 
-        std::mem::forget(logger_provider);
+        // Leaking the provider stops its Drop from ever running, so records
+        // still queued in the batch exporter are lost at shutdown - precisely
+        // the ones describing why the process is going away. Hand it to the
+        // caller instead, to be shut down on graceful termination.
+        guard = Some(logger_provider);
 
         info!(
             service = service_name,
@@ -117,9 +143,13 @@ pub fn init_tracing_and_logging(
             "observability enabled: exporting traces, metrics and logs via OTLP/gRPC"
         );
     } else {
-        let subscriber = Registry::default().with(fmt_layer);
-
-        subscriber.init();
+        // The filter belongs here too. Without it the registry applies no level
+        // ceiling at all - `fmt` reports no max level hint - so LOG_FILTER was
+        // silently ignored and everything down to TRACE was emitted, including
+        // sqlx statement text. This is the default branch, so it was the common
+        // deployment that was affected; the repository .env enables
+        // observability, which is why development never showed it.
+        Registry::default().with(fmt_layer).with(filter).init();
 
         info!(
             service = service_name,
@@ -129,5 +159,7 @@ pub fn init_tracing_and_logging(
         );
     }
 
-    Ok(())
+    Ok(ObservabilityGuard {
+        logger_provider: guard,
+    })
 }
