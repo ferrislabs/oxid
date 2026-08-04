@@ -97,12 +97,20 @@ RUN pnpm build
 
 FROM nginxinc/nginx-unprivileged:1.28.0-alpine3.21 AS webapp
 
-COPY --from=webapp-build /usr/local/src/oxid/dist/client /usr/local/src/oxid
+# Assets are placed at build time and owned by the runtime user. The entrypoint
+# used to wipe and repopulate this directory on every start, which a non-root
+# process cannot do - and which was needless work besides.
+COPY --from=webapp-build --chown=101:101 /usr/local/src/oxid/dist/client /usr/share/nginx/html
 COPY apps/webapp/nginx.conf /etc/nginx/conf.d/default.conf
-COPY apps/webapp/docker-entrypoint.sh /docker-entrypoint.d/docker-entrypoint.sh
 
-# The unprivileged nginx image listens on 8080: a non-root process cannot
-# bind a port below 1024.
+# The pristine template stays out of the served tree so that every start
+# re-substitutes from placeholders rather than from the previous start's values.
+COPY --from=webapp-build /usr/local/src/oxid/dist/client/config.json /usr/local/share/oxid/config.json
+
+# Mode set at copy time rather than by a later RUN: this image runs as a
+# non-root user, which cannot chmod a file root owns.
+COPY --chmod=0755 apps/webapp/docker-entrypoint.sh /docker-entrypoint.d/docker-entrypoint.sh
+
+# The unprivileged nginx image listens on 8080: a non-root process cannot bind
+# a port below 1024.
 EXPOSE 8080
-
-RUN chmod +x /docker-entrypoint.d/docker-entrypoint.sh
