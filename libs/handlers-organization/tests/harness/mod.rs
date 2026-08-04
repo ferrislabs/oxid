@@ -191,6 +191,19 @@ impl TestApi {
     ///
     /// `subject` is the OIDC subject. The handler layer currently parses it as
     /// an internal user id, so it has to be a UUID until that is separated.
+    /// A token carrying realm roles, the way the provider sends them.
+    pub fn token_with_realm_roles(&self, subject: &str, username: &str, roles: &[&str]) -> String {
+        self.sign(json!({
+            "sub": subject,
+            "iss": self.issuer,
+            "aud": "oxid",
+            "exp": Utc::now().timestamp() + 3_600,
+            "scope": "openid profile",
+            "preferred_username": username,
+            "realm_access": { "roles": roles },
+        }))
+    }
+
     /// A token from a realm that does not release the email claim at all.
     pub fn token_without_email(&self, subject: &str, username: &str) -> String {
         self.sign(json!({
