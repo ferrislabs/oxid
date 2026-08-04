@@ -246,7 +246,7 @@ where
             .await?;
 
         self.member_repository
-            .assign_role(member.id, owner_role.id)
+            .assign_role(organization.id, member.id, owner_role.id)
             .await?;
 
         Ok(organization)
@@ -271,7 +271,9 @@ where
             .await?
             .ok_or(CoreError::NotFound)?;
 
-        self.member_repository.remove(member.id).await
+        self.member_repository
+            .remove(organization_id, member.id)
+            .await
     }
 }
 
@@ -347,9 +349,9 @@ mod tests {
             });
         members
             .expect_list_role_ids()
-            .with(eq(member_id))
+            .with(eq(org_id), eq(member_id))
             .times(enrichments)
-            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
+            .returning(|_, _| Box::pin(async { Ok(Vec::new()) }));
         roles
             .expect_list_by_organization()
             .with(eq(org_id))
@@ -781,7 +783,7 @@ mod tests {
         member_repository
             .expect_assign_role()
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
         let mut service = OrganizationService::new(
             organization_repository,
@@ -922,9 +924,9 @@ mod tests {
             .returning(|_| Box::pin(async { Ok(Vec::new()) }));
         member_repository
             .expect_list_role_ids()
-            .with(eq(member_id))
+            .with(eq(org_id), eq(member_id))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
+            .returning(|_, _| Box::pin(async { Ok(Vec::new()) }));
         member_repository
             .expect_find_by_org_and_user()
             .with(eq(org_id), eq(leaver_id))
@@ -941,9 +943,9 @@ mod tests {
 
         member_repository
             .expect_remove()
-            .with(eq(member_id))
+            .with(eq(org_id), eq(member_id))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         let mut service = OrganizationService::new(
             organization_repository,

@@ -93,7 +93,7 @@ where
             reason: Some("not a member of this organization".to_owned()),
         })?;
 
-    let role_ids = members.list_role_ids(member.id).await?;
+    let role_ids = members.list_role_ids(organization_id, member.id).await?;
     let org_roles = roles.list_by_organization(organization_id).await?;
 
     let aggregated = org_roles

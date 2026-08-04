@@ -208,3 +208,45 @@ async fn an_owner_can_update_their_organization() {
         "the owner holds every permission on their own organization"
     );
 }
+
+// --- Schema invariants ----------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_role_cannot_be_assigned_to_a_member_of_another_organization() {
+    // `member_roles` links a member to a role with no organization of its own,
+    // so nothing in the schema forbids pairing a member of one organization
+    // with a role belonging to another. The application must not be the only
+    // thing standing between a caller and a cross-tenant privilege grant.
+    let api = TestApi::start().await;
+    let acme = create_org(&api, &alice_token(&api), "Acme", "acme").await;
+    let other = create_org(&api, &bob_token(&api), "Other", "other").await;
+
+    let member_of_acme: uuid::Uuid = sqlx::query_scalar(
+        "SELECT id FROM organization_members WHERE organization_id = $1 LIMIT 1",
+    )
+    .bind(uuid::Uuid::parse_str(&acme).expect("acme id"))
+    .fetch_one(&api.pool)
+    .await
+    .expect("acme has a member");
+
+    let role_of_other: uuid::Uuid =
+        sqlx::query_scalar("SELECT id FROM roles WHERE organization_id = $1 LIMIT 1")
+            .bind(uuid::Uuid::parse_str(&other).expect("other id"))
+            .fetch_one(&api.pool)
+            .await
+            .expect("other has roles");
+
+    let result = sqlx::query(
+        "INSERT INTO member_roles (id, member_id, role_id) VALUES (gen_random_uuid(), $1, $2)",
+    )
+    .bind(member_of_acme)
+    .bind(role_of_other)
+    .execute(&api.pool)
+    .await;
+
+    assert!(
+        result.is_err(),
+        "the database must reject a member paired with another organization's role"
+    );
+}
