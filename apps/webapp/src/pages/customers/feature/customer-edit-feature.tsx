@@ -44,7 +44,6 @@ function CustomerEditInner({ customer }: { customer: Customer }) {
     defaultValues: customer,
     onSubmit: async ({ value }) => {
       await new Promise((r) => setTimeout(r, 800))
-      console.log('[customers] saved', value)
       commitRef.current(value)
     },
   })
