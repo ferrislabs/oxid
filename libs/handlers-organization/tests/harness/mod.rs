@@ -253,11 +253,11 @@ impl TestApi {
         self.client.delete(format!("{}{path}", self.base_url))
     }
 
-/// Serves the realm's JWKS at the path `FerrisKeyRepository` derives from the
-/// issuer. It must stay up for the whole test: the validator refetches the key
-/// set on every single token validation.
-/// How many times the realm's key set has been fetched. Every validation used
-/// to cause one; a cache should make that stop growing.
+    /// Serves the realm's JWKS at the path `FerrisKeyRepository` derives from the
+    /// issuer. It must stay up for the whole test: the validator refetches the key
+    /// set on every single token validation.
+    /// How many times the realm's key set has been fetched. Every validation used
+    /// to cause one; a cache should make that stop growing.
     pub fn jwks_fetches(&self) -> usize {
         self.jwks_hits.load(Ordering::SeqCst)
     }

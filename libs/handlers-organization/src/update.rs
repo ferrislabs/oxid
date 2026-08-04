@@ -55,8 +55,7 @@ pub async fn handler(
             id: organization_id,
             name: OrganizationName::try_from(payload.name)
                 .map_err(|e| ApiError::Validation(e.to_string()))?,
-            slug: Slug::try_from(payload.slug)
-                .map_err(|e| ApiError::Validation(e.to_string()))?,
+            slug: Slug::try_from(payload.slug).map_err(|e| ApiError::Validation(e.to_string()))?,
         })
         .await?;
 

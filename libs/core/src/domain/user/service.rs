@@ -35,7 +35,6 @@ where
 
         self.repo.upsert_by_sub(&user).await
     }
-
 }
 
 #[cfg(test)]

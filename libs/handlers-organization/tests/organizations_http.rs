@@ -45,7 +45,10 @@ async fn create_org(api: &TestApi, token: &str, name: &str, slug: &str) -> Strin
     );
 
     let body: serde_json::Value = response.json().await.expect("json body");
-    body["data"]["id"].as_str().expect("id in payload").to_owned()
+    body["data"]["id"]
+        .as_str()
+        .expect("id in payload")
+        .to_owned()
 }
 
 // --- Authentication -------------------------------------------------------
@@ -268,7 +271,11 @@ async fn two_identities_without_an_email_are_two_distinct_users() {
             .send()
             .await
             .expect("request reaches the api");
-        assert_eq!(response.status(), StatusCode::OK, "{username} should authenticate");
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{username} should authenticate"
+        );
     }
 
     let subjects: Vec<String> = sqlx::query_scalar("SELECT sub FROM users ORDER BY sub")
@@ -510,7 +517,11 @@ async fn two_accounts_with_the_same_name_both_get_an_organization() {
             .send()
             .await
             .expect("request reaches the api");
-        assert_eq!(response.status(), StatusCode::OK, "{subject} should be provisioned");
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{subject} should be provisioned"
+        );
     }
 
     let slugs: Vec<String> = sqlx::query_scalar("SELECT slug FROM organizations ORDER BY slug")

@@ -20,7 +20,6 @@ pub async fn handler(
     State(state): State<AppState>,
     Extension(AuthenticatedUser(user_id)): Extension<AuthenticatedUser>,
 ) -> Result<Response<Vec<OrganizationResponse>>, ApiError> {
-
     let organizations = state
         .usecase
         .list_organizations_for_user(user_id)

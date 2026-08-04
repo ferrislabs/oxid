@@ -2,6 +2,7 @@ use authz::{Authorizer, Resource, Subject};
 use chrono::Utc;
 use common::{CoreError, generate_uuid_v7};
 
+use crate::application::policy;
 use crate::{
     UserId,
     domain::{
@@ -14,7 +15,6 @@ use crate::{
         role::{RoleId, ports::RoleRepository},
     },
 };
-use crate::application::policy;
 
 pub struct MemberService<M, R, A>
 where
@@ -229,7 +229,11 @@ mod tests {
     fn authorizer(allow: bool) -> MockAuthorizer {
         let mut authz = MockAuthorizer::new();
         authz.expect_evaluate().returning(move |_| {
-            let decision = if allow { Decision::allow() } else { Decision::deny() };
+            let decision = if allow {
+                Decision::allow()
+            } else {
+                Decision::deny()
+            };
             Box::pin(async move { Ok(decision) })
         });
         authz

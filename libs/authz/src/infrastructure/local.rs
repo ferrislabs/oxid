@@ -414,9 +414,11 @@ mod zero_bit_tests {
 
     #[tokio::test]
     async fn an_action_requiring_no_bits_is_denied_not_granted() {
-        let pdp = LocalPolicyEngine::builder().action("free.for.all", 0).build();
-        let subject = Subject::new(SubjectKind::User, "alice")
-            .with_property(SUBJECT_PERMISSIONS_KEY, 0_i64);
+        let pdp = LocalPolicyEngine::builder()
+            .action("free.for.all", 0)
+            .build();
+        let subject =
+            Subject::new(SubjectKind::User, "alice").with_property(SUBJECT_PERMISSIONS_KEY, 0_i64);
         let request = AccessEvaluationRequest::new(
             subject,
             Action::new("free.for.all"),

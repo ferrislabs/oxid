@@ -122,7 +122,9 @@ fn forwarded_candidate(req: &Request) -> Option<String> {
     {
         for part in s.split(';') {
             if let Some(rest) = part.trim().strip_prefix("for=") {
-                let cleaned = rest.trim_matches('"').trim_matches(|c| c == '[' || c == ']');
+                let cleaned = rest
+                    .trim_matches('"')
+                    .trim_matches(|c| c == '[' || c == ']');
                 if !cleaned.is_empty() {
                     return Some(cleaned.to_owned());
                 }

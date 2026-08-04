@@ -120,10 +120,7 @@ mod tests {
     fn only_parameter_names_are_kept() {
         // The values are the payload: an ERP puts customer names and
         // identifiers in query parameters, and traces outlive requests.
-        assert_eq!(
-            query_keys(Some("search=Dupont&page=2")),
-            "search,page"
-        );
+        assert_eq!(query_keys(Some("search=Dupont&page=2")), "search,page");
     }
 
     #[test]

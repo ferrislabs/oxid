@@ -243,7 +243,10 @@ mod realm_role_tests {
     #[test]
     fn realm_roles_reach_the_identity() {
         let mut extra = serde_json::Map::new();
-        extra.insert("realm_access".to_owned(), json!({ "roles": ["oxid:admin"] }));
+        extra.insert(
+            "realm_access".to_owned(),
+            json!({ "roles": ["oxid:admin"] }),
+        );
 
         let identity: Identity = claims_with(extra).into();
 
@@ -260,7 +263,11 @@ mod realm_role_tests {
     fn a_malformed_realm_access_is_not_fatal() {
         // A provider sending the wrong shape must not grant anything, and must
         // not panic either.
-        for shape in [json!({ "roles": "oxid:admin" }), json!("oxid:admin"), json!(null)] {
+        for shape in [
+            json!({ "roles": "oxid:admin" }),
+            json!("oxid:admin"),
+            json!(null),
+        ] {
             let mut extra = serde_json::Map::new();
             extra.insert("realm_access".to_owned(), shape);
             let identity: Identity = claims_with(extra).into();

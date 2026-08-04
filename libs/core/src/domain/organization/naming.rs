@@ -32,7 +32,10 @@ impl Display for NamingError {
             }
             Self::TooLong { field, max } => write!(f, "{field} must be at most {max} characters"),
             Self::SlugCharset => {
-                write!(f, "slug may only contain lowercase letters, digits and hyphens")
+                write!(
+                    f,
+                    "slug may only contain lowercase letters, digits and hyphens"
+                )
             }
             Self::SlugEdge => write!(f, "slug must start and end with a letter or digit"),
         }

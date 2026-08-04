@@ -113,6 +113,8 @@ impl OxidUseCase {
             member_repository,
             authz,
         );
-        service.leave_organization(actor, organization_id, user_id).await
+        service
+            .leave_organization(actor, organization_id, user_id)
+            .await
     }
 }

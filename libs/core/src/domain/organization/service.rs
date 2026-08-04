@@ -284,9 +284,10 @@ where
         let base = Slug::from_seed(seed).ok_or_else(|| {
             CoreError::Conflict("cannot derive an organization name from this account".to_owned())
         })?;
-        let name = OrganizationName::try_from(seed.trim().to_owned())
-            .unwrap_or_else(|_| OrganizationName::try_from(base.as_str().to_owned())
-                .expect("a valid slug is a valid name"));
+        let name = OrganizationName::try_from(seed.trim().to_owned()).unwrap_or_else(|_| {
+            OrganizationName::try_from(base.as_str().to_owned())
+                .expect("a valid slug is a valid name")
+        });
 
         // Slugs are unique among live organizations and two accounts with the
         // same display name are ordinary, so the derived slug has to be checked
@@ -340,7 +341,9 @@ where
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<(), CoreError> {
-        let organization = self.get_organization(actor.clone(), organization_id).await?;
+        let organization = self
+            .get_organization(actor.clone(), organization_id)
+            .await?;
 
         if organization.owner_id == user_id {
             return self.soft_delete_organization(actor, organization_id).await;
@@ -363,8 +366,8 @@ mod tests {
     use super::*;
     use crate::{
         UserId,
-        domain::organization::naming::{OrganizationName, Slug},
         application::policy,
+        domain::organization::naming::{OrganizationName, Slug},
         domain::{
             member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
             role::ports::MockRoleRepository,
@@ -461,7 +464,10 @@ mod tests {
             member_repository,
             MockAuthorizer::new(),
         );
-        let err = service.get_organization(actor_for(UserId(Uuid::new_v4())), id).await.unwrap_err();
+        let err = service
+            .get_organization(actor_for(UserId(Uuid::new_v4())), id)
+            .await
+            .unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
     }
@@ -501,7 +507,10 @@ mod tests {
             MockAuthorizer::new(),
         );
 
-        let org = service.get_organization(actor_for(user_id), id).await.unwrap();
+        let org = service
+            .get_organization(actor_for(user_id), id)
+            .await
+            .unwrap();
 
         assert_eq!(org.id, id);
     }
@@ -778,7 +787,10 @@ mod tests {
             MockAuthorizer::new(),
         );
 
-        let err = service.soft_delete_organization(actor_for(UserId(Uuid::new_v4())), id).await.unwrap_err();
+        let err = service
+            .soft_delete_organization(actor_for(UserId(Uuid::new_v4())), id)
+            .await
+            .unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
     }
@@ -822,7 +834,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-
 
         organization_repository
             .expect_insert()
@@ -886,7 +897,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-
 
         // Infra-style payload: constraint name only.
         organization_repository
@@ -1049,10 +1059,12 @@ mod tests {
         let id = OrganizationId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        organization_repository.expect_find_by_id().returning(move |_| {
-            let organization = fixture(id);
-            Box::pin(async move { Ok(Some(organization)) })
-        });
+        organization_repository
+            .expect_find_by_id()
+            .returning(move |_| {
+                let organization = fixture(id);
+                Box::pin(async move { Ok(Some(organization)) })
+            });
 
         let mut member_repository = MockMemberRepository::new();
         member_repository
@@ -1084,15 +1096,24 @@ mod tests {
         let member_id = MemberId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        organization_repository.expect_find_by_id().returning(move |_| {
-            let organization = fixture(id);
-            Box::pin(async move { Ok(Some(organization)) })
-        });
+        organization_repository
+            .expect_find_by_id()
+            .returning(move |_| {
+                let organization = fixture(id);
+                Box::pin(async move { Ok(Some(organization)) })
+            });
         organization_repository.expect_soft_delete().never();
 
         let mut member_repository = MockMemberRepository::new();
         let mut role_repository = MockRoleRepository::new();
-        stage_org_membership(&mut member_repository, &mut role_repository, id, user_id, member_id, 1);
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            member_id,
+            1,
+        );
 
         let mut authz = MockAuthorizer::new();
         authz

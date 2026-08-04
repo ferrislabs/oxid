@@ -54,6 +54,4 @@ impl<'tx> UserRepository for PgUserRepository<'tx> {
 
         Ok(row.into())
     }
-
-
 }

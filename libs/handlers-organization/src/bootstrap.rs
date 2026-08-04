@@ -1,7 +1,7 @@
 use auth::Identity;
+use axum::Extension;
 use axum::extract::State;
 use handlers::{ApiError, AppState, AuthenticatedUser, DataEnvelope, Response};
-use axum::Extension;
 
 use crate::{paths::CurrentUserBootstrapPath, response::OrganizationResponse};
 
