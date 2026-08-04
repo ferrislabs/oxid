@@ -42,7 +42,17 @@ impl Permissions {
     pub const MANAGE_MEMBERS: Self = Permissions(1 << 1);
     pub const MANAGE_ROLES: Self = Permissions(1 << 2);
 
+    /// Every bit that may ever be granted. The column is a signed BIGINT, so
+    /// bit 63 is the sign bit and is deliberately excluded: a role holding it
+    /// would be negative, and a negative bitfield satisfies `contains` for
+    /// every permission, including ones not yet defined. The database refuses
+    /// negative values for the same reason.
     pub const ALL: Self = Permissions(i64::MAX);
+
+    /// Whether this bitfield is one the domain is willing to store.
+    pub const fn is_valid(self) -> bool {
+        self.0 >= 0
+    }
 
     pub const fn contains(self, other: Permissions) -> bool {
         (self.0 & other.0) == other.0

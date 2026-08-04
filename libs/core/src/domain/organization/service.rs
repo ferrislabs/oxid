@@ -134,8 +134,8 @@ where
         .await?;
 
         // 3. Mutate.
-        organization.name = command.name;
-        organization.slug = command.slug;
+        organization.name = command.name.into_inner();
+        organization.slug = command.slug.into_inner();
         organization.updated_at = Utc::now();
 
         self.organization_repository
@@ -191,8 +191,8 @@ where
             .organization_repository
             .insert(&Organization {
                 id: OrganizationId(generate_uuid_v7()),
-                name: command.name,
-                slug: command.slug,
+                name: command.name.into_inner(),
+                slug: command.slug.into_inner(),
                 owner_id,
                 deleted_at: None,
                 created_at: now,
@@ -282,6 +282,7 @@ mod tests {
     use super::*;
     use crate::{
         UserId,
+        domain::organization::naming::{OrganizationName, Slug},
         application::policy,
         domain::{
             member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
@@ -483,8 +484,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap();
@@ -518,8 +519,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(UserId(Uuid::new_v4())),
                 id,
-                name: "Whatever".into(),
-                slug: "whatever".into(),
+                name: OrganizationName::try_from("Whatever".to_owned()).unwrap(),
+                slug: Slug::try_from("whatever".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -561,8 +562,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -620,8 +621,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -729,8 +730,8 @@ mod tests {
 
     fn create_cmd() -> CreateOrganizationCommand {
         CreateOrganizationCommand {
-            name: "Acme".into(),
-            slug: "acme".into(),
+            name: OrganizationName::try_from("Acme".to_owned()).unwrap(),
+            slug: Slug::try_from("acme".to_owned()).unwrap(),
             owner_id: UserId(Uuid::new_v4()),
         }
     }

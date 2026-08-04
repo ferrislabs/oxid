@@ -4,6 +4,12 @@ use utoipa::{IntoParams, ToSchema};
 pub const DEFAULT_PER_PAGE: u64 = 20;
 pub const MAX_PER_PAGE: u64 = 100;
 
+/// Upper bound on the page number. `per_page` was already clamped but `page`
+/// was not, so `(page - 1) * per_page` could overflow: in release the product
+/// wrapped and the `as i64` cast handed Postgres a negative OFFSET; in debug it
+/// panicked. Anything past this is a caller error, not a page.
+pub const MAX_PAGE: u64 = 1_000_000;
+
 #[derive(Debug, Clone, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct PaginationParams {
@@ -15,7 +21,7 @@ pub struct PaginationParams {
 
 impl PaginationParams {
     pub fn page(&self) -> u64 {
-        self.page.unwrap_or(1).max(1)
+        self.page.unwrap_or(1).clamp(1, MAX_PAGE)
     }
 
     pub fn per_page(&self) -> u64 {
@@ -25,7 +31,7 @@ impl PaginationParams {
     }
 
     pub fn offset(&self) -> u64 {
-        (self.page() - 1) * self.per_page()
+        self.page().saturating_sub(1).saturating_mul(self.per_page())
     }
 }
 
@@ -144,5 +150,35 @@ mod tests {
     fn first_page_always_one() {
         let m = meta(20, 3, Some(200));
         assert_eq!(m.first_page, 1);
+    }
+}
+
+#[cfg(test)]
+mod bounds_tests {
+    use super::*;
+
+    fn params(page: Option<u64>, per_page: Option<u64>) -> PaginationParams {
+        PaginationParams { page, per_page }
+    }
+
+    #[test]
+    fn an_absurd_page_cannot_overflow_the_offset() {
+        // Unbounded, this produced a wrapped product and then a negative
+        // OFFSET once cast to i64.
+        let offset = params(Some(u64::MAX), Some(100)).offset();
+        assert_eq!(offset, (MAX_PAGE - 1) * 100);
+    }
+
+    #[test]
+    fn the_offset_always_fits_a_signed_integer() {
+        let offset = params(Some(MAX_PAGE), Some(MAX_PER_PAGE)).offset();
+        assert!(i64::try_from(offset).is_ok());
+    }
+
+    #[test]
+    fn the_first_page_starts_at_zero() {
+        assert_eq!(params(Some(1), Some(20)).offset(), 0);
+        assert_eq!(params(Some(0), Some(20)).offset(), 0);
+        assert_eq!(params(None, None).offset(), 0);
     }
 }
