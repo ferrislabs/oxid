@@ -364,3 +364,34 @@ async fn the_key_set_is_not_refetched_on_every_request() {
         api.jwks_fetches()
     );
 }
+
+// --- Routing hygiene ------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn unimplemented_routes_are_not_mounted() {
+    // Both were routed to `todo!()`, which panics: calling them aborted the
+    // connection and the OpenAPI document advertised a success response.
+    // A route that does not exist is a better answer than one that panics.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+    let org_id = create_org(&api, &token, "Acme", "acme").await;
+
+    for method in ["GET", "DELETE"] {
+        let request = match method {
+            "GET" => api.get(&format!("/api/v1/organizations/{org_id}")),
+            _ => api.delete(&format!("/api/v1/organizations/{org_id}")),
+        };
+        let response = request
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap_or_else(|e| panic!("{method} must answer, not drop the connection: {e}"));
+
+        assert_eq!(
+            response.status(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "{method} on an organization should not be routed"
+        );
+    }
+}

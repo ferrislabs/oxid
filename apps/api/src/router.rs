@@ -3,7 +3,7 @@ use http::{
     HeaderValue, Method,
     header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION},
 };
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{catch_panic::CatchPanicLayer, cors::CorsLayer, trace::TraceLayer};
 use tracing::info_span;
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
@@ -63,16 +63,24 @@ pub fn router(state: AppState) -> Result<Router, ApiError> {
         ])
         .allow_credentials(true);
 
-    let router = Router::new()
-        .merge(organization::router(&state))
+    let mut router = Router::new().merge(organization::router(&state));
+
+    if state.args.server.enable_api_docs {
+        router = router
+            .merge(Scalar::with_url("/scalar", openapi.clone()))
+            .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", openapi.clone()));
+    }
+
+    let router = router
         // Outside authentication, so a flood of unauthenticated requests is
         // throttled before any token is validated - which costs a round trip
         // to the identity provider on a cache miss.
         .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
-        .merge(Scalar::with_url("/scalar", openapi.clone()))
-        .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", openapi.clone()))
         .layer(trace_layer)
         .layer(cors)
+        // Last resort: a panicking handler must return 500, not drop the
+        // connection and leave the caller guessing.
+        .layer(CatchPanicLayer::new())
         .with_state(state);
 
     Ok(router)

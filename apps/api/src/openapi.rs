@@ -28,9 +28,7 @@ impl Modify for SecurityAddon {
     paths(
         organization::create::handler,
         organization::list_mine::handler,
-        organization::get_one::handler,
         organization::update::handler,
-        organization::soft_delete::handler,
     ),
     components(schemas(
         organization::create::CreateOrganizationRequest,
