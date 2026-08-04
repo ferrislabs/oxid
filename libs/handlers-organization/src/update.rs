@@ -1,7 +1,9 @@
 use auth::Identity;
 use axum::{Extension, Json, extract::State};
 use handlers::{ApiError, AppState, AuthenticatedUser, DataEnvelope, Response};
-use oxid_core::{OrganizationId, UpdateOrganizationCommand, application::policy};
+use oxid_core::{
+    OrganizationId, OrganizationName, Slug, UpdateOrganizationCommand, application::policy,
+};
 use serde::Deserialize;
 use utoipa::ToSchema;
 
@@ -51,8 +53,10 @@ pub async fn handler(
         .update_organization(UpdateOrganizationCommand {
             actor,
             id: organization_id,
-            name: payload.name,
-            slug: payload.slug,
+            name: OrganizationName::try_from(payload.name)
+                .map_err(|e| ApiError::Validation(e.to_string()))?,
+            slug: Slug::try_from(payload.slug)
+                .map_err(|e| ApiError::Validation(e.to_string()))?,
         })
         .await?;
 

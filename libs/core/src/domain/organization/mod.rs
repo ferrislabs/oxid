@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::UserId;
 
 pub mod commands;
+pub mod naming;
 pub mod ports;
 pub mod service;
 

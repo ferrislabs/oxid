@@ -113,6 +113,17 @@ impl LocalPolicyEngine {
             );
         };
 
+        // `granted & 0 == 0` holds for everyone, so an action registered with
+        // no required bits would be granted to every subject. Registering one
+        // is a configuration mistake, not a way to open an action up.
+        if required == 0 {
+            return Decision::deny().with_context(
+                Context::new()
+                    .with("reason", "action requires no permission bits")
+                    .with("action", action.name.clone()),
+            );
+        }
+
         let granted = Self::subject_permission_bits(subject);
         if (granted & required) == required {
             Decision::allow()
@@ -393,5 +404,31 @@ mod tests {
         };
         let err = pdp.evaluations(&req).await.unwrap_err();
         assert!(matches!(err, AuthzError::InvalidRequest(_)));
+    }
+}
+
+#[cfg(test)]
+mod zero_bit_tests {
+    use super::*;
+    use crate::domain::types::subject::SubjectKind;
+
+    #[tokio::test]
+    async fn an_action_requiring_no_bits_is_denied_not_granted() {
+        let pdp = LocalPolicyEngine::builder().action("free.for.all", 0).build();
+        let subject = Subject::new(SubjectKind::User, "alice")
+            .with_property(SUBJECT_PERMISSIONS_KEY, 0_i64);
+        let request = AccessEvaluationRequest::new(
+            subject,
+            Action::new("free.for.all"),
+            Resource::new("organization", "1"),
+        );
+
+        let decision = pdp.evaluate(&request).await.unwrap();
+
+        assert!(!decision.is_allowed());
+        assert_eq!(
+            decision.context.unwrap().0.get("reason").unwrap(),
+            "action requires no permission bits"
+        );
     }
 }

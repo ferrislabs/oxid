@@ -395,3 +395,28 @@ async fn unimplemented_routes_are_not_mounted() {
         );
     }
 }
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_slug_that_would_break_routing_is_rejected() {
+    // Slugs went to the database as given: no trim, no length, no charset.
+    // They are destined for URLs.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+
+    for slug in ["", "   ", "../admin", "acme corp", "AcmeCorp", "-acme"] {
+        let response = api
+            .post("/api/v1/organizations")
+            .bearer_auth(&token)
+            .json(&serde_json::json!({ "name": "Acme", "slug": slug }))
+            .send()
+            .await
+            .expect("request reaches the api");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "slug {slug:?} should be rejected"
+        );
+    }
+}
