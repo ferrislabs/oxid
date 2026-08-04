@@ -133,9 +133,17 @@ impl TestApi {
             .expect("connect to redis");
 
         let state = AppState {
-            // Every argument currently has a default, so the binary parses with
-            // no argv. Once secrets become required this must supply them.
-            args: Arc::new(Args::parse_from(["oxid"])),
+            // Secrets are required, so they must be supplied explicitly - which
+            // is the point: a deployment that forgets them fails to start.
+            args: Arc::new(Args::parse_from([
+                "oxid",
+                "--database-name",
+                "postgres",
+                "--database-password",
+                "postgres",
+                "--auth-client-secret",
+                "test-secret",
+            ])),
             auth: AuthService::new(FerrisKeyRepository::new(issuer.clone(), None)),
             usecase: OxidUseCase::new(pool.clone(), default_authorizer()),
             rate_limit: RateLimitService::new(limiter),

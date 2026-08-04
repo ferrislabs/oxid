@@ -1,4 +1,4 @@
-use std::{path::PathBuf, vec};
+use std::vec;
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct ServerArgs {
@@ -53,6 +53,15 @@ bucket, or exhaust someone else's."
     )]
     pub port: u16,
     #[arg(
+        long = "server-internal-host",
+        env = "SERVER_INTERNAL_HOST",
+        name = "SERVER_INTERNAL_HOST",
+        default_value = "127.0.0.1",
+        long_help = "Interface the internal router binds to. It carries health and \
+metrics and has no authentication, so it defaults to the loopback address."
+    )]
+    pub internal_host: String,
+    #[arg(
         long = "server-internal-port",
         env = "SERVER_INTERNAL_PORT",
         name = "SERVER_INTERNAL_PORT",
@@ -60,29 +69,6 @@ bucket, or exhaust someone else's."
         long_help = "The port to run the internal application on (health, metrics, ...)"
     )]
     pub internal_port: u16,
-    #[command(flatten)]
-    pub tls: Option<ServerTlsArgs>,
-}
-
-#[derive(clap::Args, Debug, Clone)]
-#[group(requires_all = ["SERVER_TLS_CERT", "SERVER_TLS_KEY"])]
-pub struct ServerTlsArgs {
-    #[arg(
-        long = "server-tls-cert",
-        env = "SERVER_TLS_CERT",
-        name = "SERVER_TLS_CERT",
-        long_help = "Path to the TLS cert file in PEM format",
-        required = false
-    )]
-    pub cert: PathBuf,
-    #[arg(
-        long = "server-tls-key",
-        env = "SERVER_TLS_KEY",
-        name = "SERVER_TLS_KEY",
-        long_help = "Path to the TLS key file in PEM format",
-        required = false
-    )]
-    pub key: PathBuf,
 }
 
 impl Default for ServerArgs {
@@ -93,8 +79,8 @@ impl Default for ServerArgs {
             trust_forwarded_headers: false,
             host: "0.0.0.0".to_string(),
             port: 3333,
+            internal_host: "127.0.0.1".to_string(),
             internal_port: 3334,
-            tls: None,
         }
     }
 }
@@ -117,7 +103,6 @@ mod tests {
         assert_eq!(args.port, 3333);
         assert_eq!(args.internal_port, 3334);
         assert!(args.allowed_origins.is_empty());
-        assert!(args.tls.is_none());
     }
 
     #[test]
@@ -154,20 +139,5 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(cmd.server.allowed_origins.len(), 2);
-    }
-
-    #[test]
-    fn parse_tls_args() {
-        let cmd = Cmd::try_parse_from([
-            "cmd",
-            "--server-tls-cert",
-            "/etc/ssl/cert.pem",
-            "--server-tls-key",
-            "/etc/ssl/key.pem",
-        ])
-        .unwrap();
-        let tls = cmd.server.tls.unwrap();
-        assert_eq!(tls.cert.to_str().unwrap(), "/etc/ssl/cert.pem");
-        assert_eq!(tls.key.to_str().unwrap(), "/etc/ssl/key.pem");
     }
 }

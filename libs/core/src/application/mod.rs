@@ -79,7 +79,7 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
     let db_url = format!(
         "postgres://{}:{}@{}:{}/{}",
         config.database.username,
-        config.database.password,
+        config.database.password.expose(),
         config.database.host,
         config.database.port,
         config.database.name,
@@ -89,9 +89,11 @@ pub async fn create_service(config: Config) -> Result<OxidService, CoreError> {
         .await
         .map_err(map_sqlx_error)?;
 
-    let limiter = RedisRateLimiter::connect(&config.rate_limit.redis_url)
+    let limiter = RedisRateLimiter::connect(config.rate_limit.redis_url.expose())
         .await
-        .map_err(|e| CoreError::Internal(format!("redis connection failed: {e}")))?;
+        // The URL may carry a password, and this message reaches a panic
+        // at boot. Report the failure, not the credential.
+        .map_err(|_| CoreError::Internal("redis connection failed".to_owned()))?;
     let rate_limit = RateLimitService::new(limiter);
     let rate_limit_quota = Quota::per_minute(config.rate_limit.per_minute);
 

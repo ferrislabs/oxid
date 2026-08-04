@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let internal_router = internal_router()?;
 
     let addr = get_addr(&args.server.host, args.server.port).await?;
-    let internal_addr = get_addr(&args.server.host, args.server.internal_port).await?;
+    let internal_addr = get_addr(&args.server.internal_host, args.server.internal_port).await?;
 
     info!(%addr, %internal_addr, "starting api and internal http servers");
 

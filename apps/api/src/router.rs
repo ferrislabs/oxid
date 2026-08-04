@@ -42,7 +42,17 @@ pub fn router(state: AppState) -> Result<Router, ApiError> {
 
     let openapi = ApiDoc::openapi();
 
-    let allowed_origins: Vec<HeaderValue> = vec![HeaderValue::from_static("http://localhost:5173")];
+    // Read from configuration: the origin used to be compiled in, pointing at a
+    // development port this project does not even use, so no deployment could
+    // ever be reached by its own frontend.
+    let allowed_origins = state
+        .args
+        .server
+        .allowed_origins
+        .iter()
+        .map(|origin| HeaderValue::from_str(origin))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ApiError::BadRequest("invalid allowed origin".to_owned()))?;
 
     let cors = CorsLayer::new()
         .allow_methods([
