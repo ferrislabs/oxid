@@ -21,10 +21,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  packages: write
-
+# Declared per job: a workflow-level `packages: write` is inherited by every
+# job, including the one that only compiles, giving a compromised build step a
+# direct path to publishing images.
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
@@ -34,6 +33,8 @@ env:
 
 jobs:
   rust-check:
+    permissions:
+      contents: read
     name: rust (${{ matrix.task }})
     runs-on: ubuntu-24.04
     strategy:
@@ -48,16 +49,16 @@ jobs:
             cmd: cargo test --workspace --locked
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: install rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: 1.95.0
           components: rustfmt, clippy
 
       - name: cache cargo + target
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           # Each task gets its own cache slot — clippy and test compile
           # different artefact sets, sharing one cache trashes hit-rate.
@@ -74,6 +75,9 @@ jobs:
         run: ${{ matrix.cmd }}
 
   build:
+    permissions:
+      contents: read
+      packages: write
     needs: rust-check
     runs-on: ${{ matrix.runner.name }}
     strategy:
@@ -88,13 +92,13 @@ jobs:
           - api
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: set up builx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: cache layers
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/.buildx-cache
           key: buildx-${{ runner.arch }}-${{ matrix.target }}-${{ github.sha }}
@@ -103,21 +107,21 @@ jobs:
 
       - name: get image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ghcr.io/ferrislabs/oxid-${{ matrix.target }}
 
       - name: log-in to ghcr
         if: inputs.push || startsWith(github.ref, 'refs/tags/v') || github.ref_name ==
           github.event.repository.default_branch
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         id: build
         with:
           context: .
@@ -143,7 +147,7 @@ jobs:
       - name: upload digest
         if: inputs.push || startsWith(github.ref, 'refs/tags/v') || github.ref_name ==
           github.event.repository.default_branch
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: digests-${{ runner.arch }}-${{ matrix.target }}
           path: ${{ runner.temp }}/digests/*
@@ -158,6 +162,9 @@ jobs:
           mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
 
   push-manifest:
+    permissions:
+      contents: read
+      packages: write
     if: inputs.push || startsWith(github.ref, 'refs/tags/v') || github.ref_name ==
       github.event.repository.default_branch
     needs:
@@ -170,17 +177,17 @@ jobs:
           - api
     steps:
       - name: set up builx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: ${{ runner.temp }}/digests
           pattern: digests-*-${{ matrix.target }}
           merge-multiple: true
 
       - name: log-in to ghcr
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -188,7 +195,7 @@ jobs:
 
       - name: get image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ghcr.io/ferrislabs/oxid-${{ matrix.target }}
           tags: |

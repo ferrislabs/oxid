@@ -55,10 +55,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ferriskey
-      POSTGRES_PASSWORD: ferriskey
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ferriskey}
       POSTGRES_DB: oxid
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -81,7 +81,7 @@ services:
         "allkeys-lru",
       ]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -103,7 +103,16 @@ services:
         node_arch=$$(uname -m | sed s/aarch64/arm64/ | sed s/x86_64/amd64/)
         echo "Fetching histogram-binary for $${node_os}/$${node_arch}"
         cd /tmp
+        # The archive becomes an executable ClickHouse function, so it is
+        # verified before it is unpacked: a reassigned tag, a compromised
+        # release or an intercepted download would otherwise run as code here.
+        case "$${node_os}/$${node_arch}" in
+          linux/amd64) sha="33997073eb6d82b7be4f27f9fc8ec9e28a395e0f20674d5d54bb2fa28a75488d" ;;
+          linux/arm64) sha="e5605ebffa82a450ebbcdf6cf19dad546e1e40d52dbf3e03cfd2d2d5b7394211" ;;
+          *) echo "no pinned checksum for $${node_os}/$${node_arch}" >&2; exit 1 ;;
+        esac
         wget -O histogram-quantile.tar.gz "https://github.com/SigNoz/signoz/releases/download/histogram-quantile%2F$${version}/histogram-quantile_$${node_os}_$${node_arch}.tar.gz"
+        echo "$${sha}  histogram-quantile.tar.gz" | sha256sum -c -
         tar -xvzf histogram-quantile.tar.gz
         mv histogram-quantile /var/lib/clickhouse/user_scripts/histogramQuantile
     restart: on-failure
@@ -136,14 +145,14 @@ services:
     image: signoz/signoz:v0.120.0
     container_name: signoz
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - sqlite:/var/lib/signoz/
     environment:
       - SIGNOZ_ALERTMANAGER_PROVIDER=signoz
       - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
-      - SIGNOZ_TOKENIZER_JWT_SECRET=secret
+      - SIGNOZ_TOKENIZER_JWT_SECRET=${SIGNOZ_JWT_SECRET:?set SIGNOZ_JWT_SECRET in your .env}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "localhost:8080/api/v1/health"]
       interval: 30s
@@ -191,8 +200,8 @@ services:
       - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_REPLICATION=true
       - SIGNOZ_OTEL_COLLECTOR_TIMEOUT=10m
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
 
 networks:
   signoz-net:
