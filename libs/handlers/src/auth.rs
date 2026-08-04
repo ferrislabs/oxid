@@ -48,11 +48,6 @@ pub async fn auth_middleware(
     if let Identity::User(user) = &identity {
         let name = user.name.as_deref().unwrap_or_else(|| &user.username);
 
-        let email = user.email.as_deref().unwrap_or_else(|| {
-            error!("Auth middleware: user {} has no email", name);
-            "unknown"
-        });
-
         // Resolving the subject to a `users` row is what makes the caller
         // addressable in Oxid's own tables. A failure here leaves us unable to
         // say who is calling, so it must stop the request rather than let a
@@ -62,7 +57,9 @@ pub async fn auth_middleware(
             .create_user(CreateUserCommand {
                 name: name.to_string(),
                 username: user.username.clone(),
-                email: email.to_string(),
+                // Absent stays absent. Substituting a constant used to collapse
+                // every email-less identity onto one row.
+                email: user.email.clone(),
                 sub: user.id.clone(),
             })
             .await

@@ -250,3 +250,31 @@ async fn a_role_cannot_be_assigned_to_a_member_of_another_organization() {
         "the database must reject a member paired with another organization's role"
     );
 }
+
+// --- Identity provisioning ------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn two_identities_without_an_email_are_two_distinct_users() {
+    // A realm that does not release the email claim must still yield one row
+    // per subject. Substituting a constant for the missing claim collapses
+    // every such identity onto a single row, and with it their memberships.
+    let api = TestApi::start().await;
+
+    for (subject, username) in [(ALICE, "alice"), (BOB, "bob")] {
+        let response = api
+            .get("/api/v1/users/@me/organizations")
+            .bearer_auth(api.token_without_email(subject, username))
+            .send()
+            .await
+            .expect("request reaches the api");
+        assert_eq!(response.status(), StatusCode::OK, "{username} should authenticate");
+    }
+
+    let subjects: Vec<String> = sqlx::query_scalar("SELECT sub FROM users ORDER BY sub")
+        .fetch_all(&api.pool)
+        .await
+        .expect("read users");
+
+    assert_eq!(subjects, vec![ALICE.to_owned(), BOB.to_owned()]);
+}

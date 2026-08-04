@@ -170,11 +170,20 @@ impl TestApi {
     ///
     /// `subject` is the OIDC subject. The handler layer currently parses it as
     /// an internal user id, so it has to be a UUID until that is separated.
-    pub fn token(&self, subject: &str, username: &str, email: &str) -> String {
-        let mut header = Header::new(Algorithm::RS256);
-        header.kid = Some(TEST_KID.to_owned());
+    /// A token from a realm that does not release the email claim at all.
+    pub fn token_without_email(&self, subject: &str, username: &str) -> String {
+        self.sign(json!({
+            "sub": subject,
+            "iss": self.issuer,
+            "aud": "oxid",
+            "exp": Utc::now().timestamp() + 3_600,
+            "scope": "openid profile",
+            "preferred_username": username,
+        }))
+    }
 
-        let claims = json!({
+    pub fn token(&self, subject: &str, username: &str, email: &str) -> String {
+        self.sign(json!({
             "sub": subject,
             "iss": self.issuer,
             "aud": "oxid",
@@ -183,8 +192,12 @@ impl TestApi {
             "preferred_username": username,
             "email": email,
             "email_verified": true,
-        });
+        }))
+    }
 
+    fn sign(&self, claims: serde_json::Value) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(TEST_KID.to_owned());
         let key = EncodingKey::from_rsa_pem(TEST_PRIVATE_KEY_PEM.as_bytes())
             .expect("build rsa encoding key");
         encode(&header, &claims, &key).expect("encode jwt")

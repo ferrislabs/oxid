@@ -6,7 +6,7 @@ use crate::{User, UserId};
 #[derive(Debug, Clone)]
 pub struct UserRow {
     pub id: Uuid,
-    pub email: String,
+    pub email: Option<String>,
     pub username: String,
     pub display_name: String,
     pub sub: String,
