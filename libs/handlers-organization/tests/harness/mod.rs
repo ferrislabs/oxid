@@ -19,7 +19,13 @@
 
 #![allow(dead_code)] // helpers land ahead of the sub-issues that consume them
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use args::Args;
 use auth::{AuthService, FerrisKeyRepository};
@@ -76,6 +82,7 @@ pub struct TestApi {
     _postgres: ContainerAsync<Postgres>,
     _redis: ContainerAsync<Redis>,
     issuer: String,
+    jwks_hits: Arc<AtomicUsize>,
     base_url: String,
     client: Client,
     pub pool: PgPool,
@@ -83,7 +90,7 @@ pub struct TestApi {
 
 impl TestApi {
     pub async fn start() -> Self {
-        let issuer = start_jwks_server().await;
+        let (issuer, jwks_hits) = start_jwks_server().await;
 
         // Same image as docker-compose: the migrations call `gen_random_uuid()`,
         // built in only from PostgreSQL 13 onwards and declared nowhere.
@@ -139,6 +146,11 @@ impl TestApi {
 
         let router = Router::new()
             .merge(handlers_organization::router(&state))
+            // Mirrors apps/api: rate limiting wraps authentication.
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                handlers::rate_limit::rate_limit_middleware,
+            ))
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -159,6 +171,7 @@ impl TestApi {
             _postgres: postgres,
             _redis: redis,
             issuer,
+            jwks_hits,
             base_url: format!("http://{addr}"),
             client: Client::new(),
             pool,
@@ -218,20 +231,29 @@ impl TestApi {
     pub fn delete(&self, path: &str) -> RequestBuilder {
         self.client.delete(format!("{}{path}", self.base_url))
     }
-}
 
 /// Serves the realm's JWKS at the path `FerrisKeyRepository` derives from the
 /// issuer. It must stay up for the whole test: the validator refetches the key
 /// set on every single token validation.
-async fn start_jwks_server() -> String {
+/// How many times the realm's key set has been fetched. Every validation used
+/// to cause one; a cache should make that stop growing.
+    pub fn jwks_fetches(&self) -> usize {
+        self.jwks_hits.load(Ordering::SeqCst)
+    }
+}
+
+async fn start_jwks_server() -> (String, Arc<AtomicUsize>) {
     let jwks = json!({
         "keys": [{ "kid": TEST_KID, "n": TEST_N, "e": TEST_E }]
     });
 
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counter = hits.clone();
     let router = Router::new().route(
         "/protocol/openid-connect/certs",
         get(move || {
             let jwks = jwks.clone();
+            counter.fetch_add(1, Ordering::SeqCst);
             async move { axum::Json(jwks) }
         }),
     );
@@ -245,5 +267,5 @@ async fn start_jwks_server() -> String {
         axum::serve(listener, router).await.expect("serve jwks");
     });
 
-    format!("http://{addr}")
+    (format!("http://{addr}"), hits)
 }

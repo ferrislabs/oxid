@@ -9,7 +9,8 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use handlers::{ApiError, AppState};
+use axum::middleware::from_fn_with_state;
+use handlers::{ApiError, AppState, rate_limit::rate_limit_middleware};
 use handlers_organization as organization;
 
 use crate::openapi::ApiDoc;
@@ -64,6 +65,10 @@ pub fn router(state: AppState) -> Result<Router, ApiError> {
 
     let router = Router::new()
         .merge(organization::router(&state))
+        // Outside authentication, so a flood of unauthenticated requests is
+        // throttled before any token is validated - which costs a round trip
+        // to the identity provider on a cache miss.
+        .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
         .merge(Scalar::with_url("/scalar", openapi.clone()))
         .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", openapi.clone()))
         .layer(trace_layer)

@@ -1,10 +1,14 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tokio::sync::RwLock;
+use tracing::{debug, warn};
 
 use crate::{AuthError, Claims, Identity, domain::ports::AuthRepository};
 
@@ -13,11 +17,26 @@ pub struct Jwks {
     keys: Vec<Jwk>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Jwk {
     kid: String,
     n: String,
     e: String,
+}
+
+/// How long a fetched key set is trusted before being refetched. A rotation
+/// that lands inside the window is still picked up: an unknown key identifier
+/// forces a refresh regardless of age.
+const JWKS_TTL: Duration = Duration::from_secs(300);
+
+/// Ceiling on a single call to the identity provider. reqwest applies none by
+/// default, so an provider that accepts the connection and never answers would
+/// otherwise pin the task forever.
+const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+
+struct CachedJwks {
+    keys: Vec<Jwk>,
+    fetched_at: Instant,
 }
 
 #[derive(Clone)]
@@ -25,15 +44,53 @@ pub struct FerrisKeyRepository {
     pub http: Arc<Client>,
     pub issuer: String,
     pub audience: Option<String>,
+    cache: Arc<RwLock<Option<CachedJwks>>>,
 }
 
 impl FerrisKeyRepository {
     pub fn new(issuer: impl Into<String>, audience: Option<String>) -> Self {
+        let http = Client::builder()
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            // Only fails if the TLS backend cannot start, which would make the
+            // process useless anyway; failing at boot beats failing per request.
+            .expect("build http client");
+
         Self {
-            http: Arc::new(Client::new()),
+            http: Arc::new(http),
             issuer: issuer.into(),
             audience,
+            cache: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Resolves `kid` to a signing key, going to the identity provider only
+    /// when the cached set is stale or does not carry that key.
+    async fn key_for(&self, kid: &str) -> Result<Jwk, AuthError> {
+        if let Some(key) = self.cached_key(kid).await {
+            return Ok(key);
+        }
+
+        let jwks = self.fetch_jwks().await?;
+        let found = jwks.keys.iter().find(|k| k.kid == kid).cloned();
+
+        *self.cache.write().await = Some(CachedJwks {
+            keys: jwks.keys,
+            fetched_at: Instant::now(),
+        });
+
+        found.ok_or_else(|| AuthError::KeyNotFound {
+            key: kid.to_owned(),
+        })
+    }
+
+    async fn cached_key(&self, kid: &str) -> Option<Jwk> {
+        let guard = self.cache.read().await;
+        let cached = guard.as_ref()?;
+        if cached.fetched_at.elapsed() > JWKS_TTL {
+            return None;
+        }
+        cached.keys.iter().find(|k| k.kid == kid).cloned()
     }
 
     #[tracing::instrument(skip(self), fields(issuer = %self.issuer), err)]
@@ -93,16 +150,8 @@ impl AuthRepository for FerrisKeyRepository {
             }
         })?;
 
-        let jwks = self.fetch_jwks().await?;
-
-        info!("fetched jwks with {} keys", jwks.keys.len());
-
-        let keys = jwks.keys;
-
-        let key = keys
-            .iter()
-            .find(|k| k.kid == kid)
-            .ok_or_else(|| AuthError::KeyNotFound { key: kid.clone() })?;
+        let key = self.key_for(&kid).await?;
+        debug!(%kid, "resolved signing key");
 
         let decoding_key = DecodingKey::from_rsa_components(&key.n, &key.e).map_err(|e| {
             warn!("failed to build decoding key from jwk: {}", e);
