@@ -12,6 +12,18 @@ pub struct ServerArgs {
     )]
     pub allowed_origins: Vec<String>,
     #[arg(
+        long = "server-trust-forwarded-headers",
+        env = "SERVER_TRUST_FORWARDED_HEADERS",
+        name = "SERVER_TRUST_FORWARDED_HEADERS",
+        default_value_t = false,
+        long_help = "Trust X-Forwarded-For / X-Real-IP / Forwarded to identify the client. \
+Only safe when every request reaches this process through a reverse proxy that \
+overwrites those headers; otherwise any client can choose its own rate-limit \
+bucket, or exhaust someone else's."
+    )]
+    pub trust_forwarded_headers: bool,
+
+    #[arg(
         short = 'H',
         long = "server-host",
         env = "SERVER_HOST",
@@ -66,6 +78,7 @@ impl Default for ServerArgs {
     fn default() -> Self {
         Self {
             allowed_origins: vec![],
+            trust_forwarded_headers: false,
             host: "0.0.0.0".to_string(),
             port: 3333,
             internal_port: 3334,

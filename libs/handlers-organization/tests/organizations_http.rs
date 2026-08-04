@@ -338,3 +338,29 @@ async fn a_deleted_organization_cannot_be_updated_by_its_owner() {
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+// --- Authentication cost --------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn the_key_set_is_not_refetched_on_every_request() {
+    // Validation fetched the realm's key set on every single call, so each
+    // request - including one carrying a bogus token - caused an outbound call
+    // to the identity provider.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+
+    for _ in 0..5 {
+        api.get("/api/v1/users/@me/organizations")
+            .bearer_auth(&token)
+            .send()
+            .await
+            .expect("request reaches the api");
+    }
+
+    assert!(
+        api.jwks_fetches() < 5,
+        "expected the key set to be cached, it was fetched {} times for 5 requests",
+        api.jwks_fetches()
+    );
+}

@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::routing::TypedPath;
-use handlers::{AppState, auth::auth_middleware, rate_limit::rate_limit_middleware};
+use handlers::{AppState, auth::auth_middleware};
 
 use crate::paths::{CurrentUserOrganizationsPath, OrganizationPath, OrganizationsPath};
 
@@ -28,6 +28,5 @@ pub fn router(state: &AppState) -> Router<AppState> {
                 .delete(soft_delete::handler),
         )
         .route(CurrentUserOrganizationsPath::PATH, get(list_mine::handler))
-        .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
 }
