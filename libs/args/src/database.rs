@@ -1,4 +1,4 @@
-use common::DatabaseConfig;
+use common::{DatabaseConfig, Secret};
 use url::Url;
 
 #[derive(clap::Args, Debug, Clone)]
@@ -14,7 +14,6 @@ pub struct DatabaseArgs {
     #[arg(
         long = "database-name",
         env = "DATABASE_NAME",
-        default_value = "oxid",
         name = "DATABASE_NAME",
         long_help = "The database name to use"
     )]
@@ -24,9 +23,11 @@ pub struct DatabaseArgs {
         env = "DATABASE_PASSWORD",
         default_value = "oxid",
         name = "DATABASE_PASSWORD",
-        long_help = "The database password to use"
+        long_help = "The database password. Required: a default would let a \
+deployment that forgets it start silently with a value anyone can read in this \
+repository."
     )]
-    pub password: String,
+    pub password: Secret,
     #[arg(
         long = "database-port",
         env = "DATABASE_PORT",
@@ -50,7 +51,7 @@ impl Default for DatabaseArgs {
         Self {
             host: "localhost".to_string(),
             name: "oxid".to_string(),
-            password: "oxid".to_string(),
+            password: Secret::new("oxid"),
             port: 5432,
             user: "oxid".to_string(),
         }
@@ -65,7 +66,7 @@ impl From<Url> for DatabaseArgs {
                 .unwrap_or(url::Host::Domain("localhost"))
                 .to_string(),
             name: value.path().to_string(),
-            password: value.password().unwrap_or("").to_string(),
+            password: Secret::new(value.password().unwrap_or("")),
             port: value.port().unwrap_or(5432),
             user: value.username().to_string(),
         }
@@ -93,7 +94,7 @@ mod tests {
         let args = DatabaseArgs::default();
         assert_eq!(args.host, "localhost");
         assert_eq!(args.name, "oxid");
-        assert_eq!(args.password, "oxid");
+        assert_eq!(args.password.expose(), "oxid");
         assert_eq!(args.port, 5432);
         assert_eq!(args.user, "oxid");
     }
@@ -104,7 +105,7 @@ mod tests {
         let args = DatabaseArgs::from(url);
         assert_eq!(args.host, "db.example.com");
         assert_eq!(args.name, "/mydb");
-        assert_eq!(args.password, "secret");
+        assert_eq!(args.password.expose(), "secret");
         assert_eq!(args.port, 5433);
         assert_eq!(args.user, "alice");
     }
@@ -113,7 +114,7 @@ mod tests {
     fn from_url_missing_password_uses_empty_string() {
         let url = Url::parse("postgres://alice@db.example.com/mydb").unwrap();
         let args = DatabaseArgs::from(url);
-        assert_eq!(args.password, "");
+        assert_eq!(args.password.expose(), "");
     }
 
     #[test]
