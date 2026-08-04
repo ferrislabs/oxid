@@ -1,6 +1,5 @@
-use auth::Identity;
 use axum::{Extension, extract::State};
-use handlers::{ApiError, AppState, DataEnvelope, IdentityExt, Response};
+use handlers::{ApiError, AppState, AuthenticatedUser, DataEnvelope, Response};
 
 use crate::{paths::CurrentUserOrganizationsPath, response::OrganizationResponse};
 
@@ -19,10 +18,8 @@ use crate::{paths::CurrentUserOrganizationsPath, response::OrganizationResponse}
 pub async fn handler(
     _: CurrentUserOrganizationsPath,
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(AuthenticatedUser(user_id)): Extension<AuthenticatedUser>,
 ) -> Result<Response<Vec<OrganizationResponse>>, ApiError> {
-    let user_id = identity.user_id()?;
-
     let organizations = state
         .usecase
         .list_organizations_for_user(user_id)

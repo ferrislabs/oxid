@@ -1,11 +1,17 @@
 use authz::Subject;
 
-use crate::{UserId, domain::organization::OrganizationId};
+use crate::{
+    UserId,
+    domain::organization::{
+        OrganizationId,
+        naming::{OrganizationName, Slug},
+    },
+};
 
 #[derive(Debug, Clone)]
 pub struct CreateOrganizationCommand {
-    pub name: String,
-    pub slug: String,
+    pub name: OrganizationName,
+    pub slug: Slug,
     pub owner_id: UserId,
 }
 
@@ -16,6 +22,6 @@ pub struct UpdateOrganizationCommand {
     /// the policy engine consumes.
     pub actor: Subject,
     pub id: OrganizationId,
-    pub name: String,
-    pub slug: String,
+    pub name: OrganizationName,
+    pub slug: Slug,
 }

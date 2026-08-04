@@ -1,3 +1,7 @@
+pub mod secret;
+
+pub use secret::Secret;
+
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::{NoContext, Timestamp, Uuid};
@@ -11,7 +15,7 @@ pub struct Config {
 
 #[derive(Clone, Debug)]
 pub struct RateLimitConfig {
-    pub redis_url: String,
+    pub redis_url: Secret,
     pub per_minute: u32,
 }
 
@@ -20,7 +24,7 @@ pub struct DatabaseConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
-    pub password: String,
+    pub password: Secret,
     pub name: String,
 }
 

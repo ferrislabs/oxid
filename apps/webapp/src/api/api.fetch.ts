@@ -1,4 +1,4 @@
-import { type Fetcher } from '#/api/api.client'
+import type { Fetcher } from '#/api/api.client'
 import { authStore } from '#/store/auth.store'
 
 export const fetcher: Fetcher['fetch'] = async (input) => {
@@ -32,7 +32,12 @@ export const fetcher: Fetcher['fetch'] = async (input) => {
 		}
 	}
 
-	if (accessToken) {
+	// A token past its expiry is not sent: the server would reject it anyway,
+	// and doing so here surfaces the expiry instead of hiding it in a 401.
+	const expiresAt = authStore.state.expiresAt
+	const expired = expiresAt !== null && expiresAt * 1000 <= Date.now()
+
+	if (accessToken && !expired) {
 		headers.set('Authorization', `Bearer ${accessToken}`)
 	}
 
@@ -49,7 +54,6 @@ export const fetcher: Fetcher['fetch'] = async (input) => {
 		method: input.method.toUpperCase(),
 		...(body && { body }),
 		headers,
-		credentials: 'include',
 		...input.overrides,
 	})
 

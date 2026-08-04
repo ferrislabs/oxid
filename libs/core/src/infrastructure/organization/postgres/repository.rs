@@ -49,6 +49,24 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
+    async fn slug_is_taken(&mut self, slug: &str) -> Result<bool, CoreError> {
+        let mut tx = self.tx.lock().await;
+        let exists = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM organizations WHERE slug = $1 AND deleted_at IS NULL
+            ) AS "exists!"
+            "#,
+            slug,
+        )
+        .fetch_one(&mut ***tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(exists)
+    }
+
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn find_by_id(&mut self, id: OrganizationId) -> Result<Option<Organization>, CoreError> {
         let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(
@@ -86,39 +104,6 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
         .map_err(map_sqlx_error)?;
 
         Ok(rows.into_iter().map(Into::into).collect())
-    }
-
-    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
-    async fn list_paginated(
-        &mut self,
-        limit: u64,
-        offset: u64,
-    ) -> Result<(Vec<Organization>, u64), CoreError> {
-        let mut tx = self.tx.lock().await;
-        let rows = sqlx::query_as!(
-            OrganizationRow,
-            r#"
-            SELECT id, name, slug, owner_id, deleted_at, created_at, updated_at
-            FROM organizations
-            WHERE deleted_at IS NULL
-            ORDER BY created_at ASC
-            LIMIT $1 OFFSET $2
-            "#,
-            limit as i64,
-            offset as i64,
-        )
-        .fetch_all(&mut ***tx)
-        .await
-        .map_err(map_sqlx_error)?;
-
-        let total: i64 = sqlx::query_scalar!(
-            r#"SELECT COUNT(*) AS "count!" FROM organizations WHERE deleted_at IS NULL"#
-        )
-        .fetch_one(&mut ***tx)
-        .await
-        .map_err(map_sqlx_error)?;
-
-        Ok((rows.into_iter().map(Into::into).collect(), total as u64))
     }
 
     #[tracing::instrument(skip(self, organization), fields(db.system = "postgresql", db.operation = "update", db.table = "organizations"), err)]

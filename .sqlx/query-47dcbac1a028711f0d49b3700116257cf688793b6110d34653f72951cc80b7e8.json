@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, name, slug, owner_id, deleted_at, created_at, updated_at\n            FROM organizations\n            WHERE deleted_at IS NULL\n            ORDER BY created_at ASC\n            LIMIT $1 OFFSET $2\n            ",
+  "query": "\n            SELECT r.id, r.organization_id, r.name, r.permissions, r.created_at, r.updated_at\n            FROM roles r\n            INNER JOIN organizations o ON o.id = r.organization_id\n            WHERE r.organization_id = $1 AND o.deleted_at IS NULL\n            ORDER BY r.created_at ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -10,39 +10,33 @@
       },
       {
         "ordinal": 1,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
-        "name": "slug",
-        "type_info": "Text"
-      },
-      {
         "ordinal": 3,
-        "name": "owner_id",
-        "type_info": "Uuid"
+        "name": "permissions",
+        "type_info": "Int8"
       },
       {
         "ordinal": 4,
-        "name": "deleted_at",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -50,10 +44,9 @@
       false,
       false,
       false,
-      true,
       false,
       false
     ]
   },
-  "hash": "87921aa0cadaefb85c8e5970ef3b59fb756150e94539ae43eb659370f7ff98bb"
+  "hash": "47dcbac1a028711f0d49b3700116257cf688793b6110d34653f72951cc80b7e8"
 }

@@ -3,22 +3,32 @@
 set -eu
 
 HTML_DIR=/usr/share/nginx/html
-SRC_DIR=/usr/local/src/oxid
+TEMPLATE=/usr/local/share/oxid/config.json
 CONFIG_FILE="$HTML_DIR/config.json"
 
-rm -rf -- "${HTML_DIR:?}/"* "${HTML_DIR:?}/".[!.]* "${HTML_DIR:?}/"..?*
-cp -r "$SRC_DIR"/* "$HTML_DIR"
+# Only the runtime configuration is rewritten. The assets are placed at build
+# time: this process runs unprivileged and has no business rewriting the tree it
+# serves.
+#
+# The served file is written by redirection rather than with `cp` or `sed -i`.
+# Both of those create or unlink inside the directory, which is root-owned; a
+# redirection truncates the existing file in place and needs only write
+# permission on the file itself, which the runtime user has.
+#
+# Reading from the pristine template keeps every start substituting from
+# placeholders rather than from the previous start's values.
+escape() {
+  printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
+}
 
-if [ -f "$CONFIG_FILE" ]; then
-  api_url="${API_URL:-}"
-  escaped_api_url=$(printf '%s' "$api_url" | sed -e 's/[\/&|]/\\&/g')
+if [ -f "$TEMPLATE" ] && [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC2016
-  sed -i "s|\${API_URL}|$escaped_api_url|g" "$CONFIG_FILE"
-
-  issuer_url="${ISSUER_URL:-}"
-  escaped_issuer_url=$(printf '%s' "$issuer_url" | sed -e 's/[\/&|]/\\&/g')
-  # shellcheck disable=SC2016
-  sed -i "s|\${ISSUER_URL}|$escaped_issuer_url|g" "$CONFIG_FILE"
+  sed \
+    -e "s|\${API_URL}|$(escape "${API_URL:-}")|g" \
+    -e "s|\${ISSUER_URL}|$(escape "${ISSUER_URL:-}")|g" \
+    -e "s|\${OIDC_CLIENT_ID}|$(escape "${OIDC_CLIENT_ID:-}")|g" \
+    -e "s|\${OIDC_SCOPE}|$(escape "${OIDC_SCOPE:-openid profile email}")|g" \
+    "$TEMPLATE" > "$CONFIG_FILE"
 fi
 
 exec "$@"

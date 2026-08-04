@@ -7,6 +7,9 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
+	// A stray console.log of a customer record would otherwise ship to
+	// production. This is the net; the calls themselves were removed.
+	esbuild: { drop: ['console', 'debugger'] },
 	resolve: { tsconfigPaths: true },
 	plugins: [
 		devtools(),

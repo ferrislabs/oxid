@@ -17,7 +17,11 @@ fn map_organization_conflict(err: CoreError) -> CoreError {
     }
 }
 
-use authz::{Authorizer, Resource};
+use authz::{Authorizer, Resource, Subject};
+
+/// How many slug variants to try before giving up. Beyond this the seed is
+/// hopeless and a caller should be told, not looped on.
+const MAX_SLUG_ATTEMPTS: u32 = 20;
 
 use crate::{
     UserId,
@@ -27,64 +31,73 @@ use crate::{
         organization::{
             Organization, OrganizationId,
             commands::{CreateOrganizationCommand, UpdateOrganizationCommand},
+            naming::{OrganizationName, Slug},
             ports::OrganizationRepository,
         },
         role::{
             ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, OWNER_ROLE_NAME, Permissions, Role, RoleId,
             ports::RoleRepository,
         },
-        user::ports::UserRepository,
     },
 };
 
-pub struct OrganizationService<O, R, M, U, A>
+pub struct OrganizationService<O, R, M, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
-    U: UserRepository,
     A: Authorizer,
 {
     organization_repository: O,
     role_repository: R,
     member_repository: M,
-    user_repository: U,
     authz: A,
 }
 
-impl<O, R, M, U, A> OrganizationService<O, R, M, U, A>
+impl<O, R, M, A> OrganizationService<O, R, M, A>
 where
     O: OrganizationRepository,
     R: RoleRepository,
     M: MemberRepository,
-    U: UserRepository,
     A: Authorizer,
 {
     pub fn new(
         organization_repository: O,
         role_repository: R,
         member_repository: M,
-        user_repository: U,
         authz: A,
     ) -> Self {
         Self {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         }
     }
 
-    #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
+    #[tracing::instrument(skip(self, actor), fields(organization_id = %id.0), err)]
     pub async fn get_organization(
         &mut self,
+        actor: Subject,
         id: OrganizationId,
     ) -> Result<Organization, CoreError> {
-        self.organization_repository
+        let organization = self
+            .organization_repository
             .find_by_id(id)
             .await?
-            .ok_or(CoreError::NotFound)
+            .ok_or(CoreError::NotFound)?;
+
+        // Membership *is* the read authorization: enrichment refuses a subject
+        // with no standing in this organization, so no action bits are needed.
+        policy::enrich_for_organization(
+            actor,
+            organization.id,
+            &mut self.member_repository,
+            &mut self.role_repository,
+        )
+        .await?;
+
+        Ok(organization)
     }
 
     #[tracing::instrument(skip(self), fields(user_id = %user_id.0), err)]
@@ -93,17 +106,6 @@ where
         user_id: UserId,
     ) -> Result<Vec<Organization>, CoreError> {
         self.organization_repository.list_for_user(user_id).await
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn list_organizations(
-        &mut self,
-        limit: u64,
-        offset: u64,
-    ) -> Result<(Vec<Organization>, u64), CoreError> {
-        self.organization_repository
-            .list_paginated(limit, offset)
-            .await
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %command.id.0, organization.slug = %command.slug), err)]
@@ -137,8 +139,8 @@ where
         .await?;
 
         // 3. Mutate.
-        organization.name = command.name;
-        organization.slug = command.slug;
+        organization.name = command.name.into_inner();
+        organization.slug = command.slug.into_inner();
         organization.updated_at = Utc::now();
 
         self.organization_repository
@@ -147,12 +149,32 @@ where
             .map_err(map_organization_conflict)
     }
 
-    #[tracing::instrument(skip(self), fields(organization_id = %id.0), err)]
-    pub async fn soft_delete_organization(&mut self, id: OrganizationId) -> Result<(), CoreError> {
-        self.organization_repository
+    #[tracing::instrument(skip(self, actor), fields(organization_id = %id.0), err)]
+    pub async fn soft_delete_organization(
+        &mut self,
+        actor: Subject,
+        id: OrganizationId,
+    ) -> Result<(), CoreError> {
+        let organization = self
+            .organization_repository
             .find_by_id(id)
             .await?
             .ok_or(CoreError::NotFound)?;
+
+        let actor = policy::enrich_for_organization(
+            actor,
+            organization.id,
+            &mut self.member_repository,
+            &mut self.role_repository,
+        )
+        .await?;
+        policy::require(
+            &self.authz,
+            &actor,
+            "organization.delete",
+            Resource::new("organization", organization.id.0.to_string()),
+        )
+        .await?;
 
         self.organization_repository
             .soft_delete(id, Utc::now())
@@ -165,21 +187,18 @@ where
         command: CreateOrganizationCommand,
     ) -> Result<Organization, CoreError> {
         let now = Utc::now();
+        // `owner_id` is Oxid's own user id, resolved from the OIDC subject by
+        // the authentication middleware. No lookup is needed here: the caller
+        // could not have reached this point without a `users` row.
         let owner_id = command.owner_id;
-
-        let user = self
-            .user_repository
-            .find_by_sub(owner_id.to_string().as_str())
-            .await?
-            .ok_or(CoreError::NotFound)?;
 
         let organization = self
             .organization_repository
             .insert(&Organization {
                 id: OrganizationId(generate_uuid_v7()),
-                name: command.name,
-                slug: command.slug,
-                owner_id: user.id,
+                name: command.name.into_inner(),
+                slug: command.slug.into_inner(),
+                owner_id,
                 deleted_at: None,
                 created_at: now,
                 updated_at: now,
@@ -226,28 +245,108 @@ where
             .insert(&Member {
                 id: MemberId(generate_uuid_v7()),
                 organization_id: organization.id,
-                user_id: user.id,
+                user_id: owner_id,
                 joined_at: now,
             })
             .await?;
 
         self.member_repository
-            .assign_role(member.id, owner_role.id)
+            .assign_role(organization.id, member.id, owner_role.id)
             .await?;
 
         Ok(organization)
     }
 
+    /// Gives a user their first organization, once.
+    ///
+    /// Deliberately not part of authentication: user provisioning already runs
+    /// on every authenticated request, and adding organization creation there
+    /// would put a write on the hot path of every call. This is a first-login
+    /// action, invoked once, and it is idempotent - a replay, a refreshed page
+    /// or a concurrent second call finds the existing organization and returns
+    /// it rather than creating another.
+    #[tracing::instrument(skip(self), fields(user_id = %owner_id.0), err)]
+    pub async fn ensure_default_organization(
+        &mut self,
+        owner_id: UserId,
+        seed: &str,
+    ) -> Result<Organization, CoreError> {
+        if let Some(existing) = self
+            .organization_repository
+            .list_for_user(owner_id)
+            .await?
+            .into_iter()
+            .next()
+        {
+            return Ok(existing);
+        }
+
+        let base = Slug::from_seed(seed).ok_or_else(|| {
+            CoreError::Conflict("cannot derive an organization name from this account".to_owned())
+        })?;
+        let name = OrganizationName::try_from(seed.trim().to_owned()).unwrap_or_else(|_| {
+            OrganizationName::try_from(base.as_str().to_owned())
+                .expect("a valid slug is a valid name")
+        });
+
+        // Slugs are unique among live organizations and two accounts with the
+        // same display name are ordinary, so the derived slug has to be checked
+        // before it is used. Retrying a failed insert is not an option: a unique
+        // violation aborts the enclosing transaction, and everything after it
+        // would fail too.
+        //
+        // Reading first leaves a race with a concurrent bootstrap. The unique
+        // index still refuses the duplicate, so the loser gets a conflict and a
+        // retry finds the slug taken - correctness rests on the constraint, not
+        // on this check.
+        let slug = self.first_available_slug(&base).await?;
+
+        self.create_organization(CreateOrganizationCommand {
+            name,
+            slug,
+            owner_id,
+        })
+        .await
+    }
+
+    async fn first_available_slug(&mut self, base: &Slug) -> Result<Slug, CoreError> {
+        for attempt in 0..MAX_SLUG_ATTEMPTS {
+            let candidate = if attempt == 0 {
+                base.clone()
+            } else {
+                match base.with_suffix(attempt + 1) {
+                    Some(slug) => slug,
+                    None => break,
+                }
+            };
+
+            if !self
+                .organization_repository
+                .slug_is_taken(candidate.as_str())
+                .await?
+            {
+                return Ok(candidate);
+            }
+        }
+
+        Err(CoreError::Conflict(
+            "could not find an available organization slug".to_owned(),
+        ))
+    }
+
     #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0, user_id = %user_id.0), err)]
     pub async fn leave_organization(
         &mut self,
+        actor: Subject,
         organization_id: OrganizationId,
         user_id: UserId,
     ) -> Result<(), CoreError> {
-        let organization = self.get_organization(organization_id).await?;
+        let organization = self
+            .get_organization(actor.clone(), organization_id)
+            .await?;
 
         if organization.owner_id == user_id {
-            return self.soft_delete_organization(organization_id).await;
+            return self.soft_delete_organization(actor, organization_id).await;
         }
 
         let member = self
@@ -256,7 +355,9 @@ where
             .await?
             .ok_or(CoreError::NotFound)?;
 
-        self.member_repository.remove(member.id).await
+        self.member_repository
+            .remove(organization_id, member.id)
+            .await
     }
 }
 
@@ -264,11 +365,12 @@ where
 mod tests {
     use super::*;
     use crate::{
-        User, UserId,
+        UserId,
         application::policy,
+        domain::organization::naming::{OrganizationName, Slug},
         domain::{
             member::ports::MockMemberRepository, organization::ports::MockOrganizationRepository,
-            role::ports::MockRoleRepository, user::ports::MockUserRepository,
+            role::ports::MockRoleRepository,
         },
     };
     use authz::{Decision, MockAuthorizer};
@@ -288,6 +390,17 @@ mod tests {
         }
     }
 
+    /// A PDP that allows everything. For tests whose subject is a system
+    /// subject: enrichment short-circuits for them, but the action is still
+    /// evaluated, so the authorizer must answer.
+    fn allowing_authorizer() -> MockAuthorizer {
+        let mut authz = MockAuthorizer::new();
+        authz
+            .expect_evaluate()
+            .returning(|_| Box::pin(async { Ok(Decision::allow()) }));
+        authz
+    }
+
     /// Subject built the way the API handler will build it: `oxid.user_id`
     /// is set, no IAM roles, no org context yet (the service enriches it).
     fn actor_for(user_id: UserId) -> authz::Subject {
@@ -304,11 +417,12 @@ mod tests {
         org_id: OrganizationId,
         user_id: UserId,
         member_id: MemberId,
+        enrichments: usize,
     ) {
         members
             .expect_find_by_org_and_user()
             .with(eq(org_id), eq(user_id))
-            .times(1)
+            .times(enrichments)
             .returning(move |organization_id, user_id| {
                 let m = Member {
                     id: member_id,
@@ -320,13 +434,13 @@ mod tests {
             });
         members
             .expect_list_role_ids()
-            .with(eq(member_id))
-            .times(1)
-            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
+            .with(eq(org_id), eq(member_id))
+            .times(enrichments)
+            .returning(|_, _| Box::pin(async { Ok(Vec::new()) }));
         roles
             .expect_list_by_organization()
             .with(eq(org_id))
-            .times(1)
+            .times(enrichments)
             .returning(|_| Box::pin(async { Ok(Vec::new()) }));
     }
 
@@ -337,7 +451,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -349,10 +462,12 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
-        let err = service.get_organization(id).await.unwrap_err();
+        let err = service
+            .get_organization(actor_for(UserId(Uuid::new_v4())), id)
+            .await
+            .unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
     }
@@ -360,11 +475,21 @@ mod tests {
     #[tokio::test]
     async fn get_organization_returns_entity_when_found() {
         let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        let role_repository = MockRoleRepository::new();
-        let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+
+        // Reading is guarded by membership, so the caller has to be one.
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            MemberId(Uuid::new_v4()),
+            1,
+        );
 
         organization_repository
             .expect_find_by_id()
@@ -379,11 +504,13 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
-        let org = service.get_organization(id).await.unwrap();
+        let org = service
+            .get_organization(actor_for(user_id), id)
+            .await
+            .unwrap();
 
         assert_eq!(org.id, id);
     }
@@ -397,7 +524,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -413,6 +539,7 @@ mod tests {
             id,
             user_id,
             member_id,
+            1,
         );
         organization_repository
             .expect_update()
@@ -440,7 +567,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         );
 
@@ -448,8 +574,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap();
@@ -465,7 +591,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -477,7 +602,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -485,8 +609,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(UserId(Uuid::new_v4())),
                 id,
-                name: "Whatever".into(),
-                slug: "whatever".into(),
+                name: OrganizationName::try_from("Whatever".to_owned()).unwrap(),
+                slug: Slug::try_from("whatever".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -502,7 +626,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -522,7 +645,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -530,8 +652,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -548,7 +670,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -564,6 +685,7 @@ mod tests {
             id,
             user_id,
             member_id,
+            1,
         );
         // No `expect_update` — the call must short-circuit before mutation.
 
@@ -582,7 +704,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             authz,
         );
 
@@ -590,8 +711,8 @@ mod tests {
             .update_organization(UpdateOrganizationCommand {
                 actor: actor_for(user_id),
                 id,
-                name: "Acme Inc.".into(),
-                slug: "acme-inc".into(),
+                name: OrganizationName::try_from("Acme Inc.".to_owned()).unwrap(),
+                slug: Slug::try_from("acme-inc".to_owned()).unwrap(),
             })
             .await
             .unwrap_err();
@@ -602,11 +723,20 @@ mod tests {
     #[tokio::test]
     async fn soft_delete_organization_calls_repo() {
         let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        let role_repository = MockRoleRepository::new();
-        let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            MemberId(Uuid::new_v4()),
+            1,
+        );
 
         organization_repository
             .expect_find_by_id()
@@ -627,11 +757,13 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
-            MockAuthorizer::new(),
+            allowing_authorizer(),
         );
 
-        service.soft_delete_organization(id).await.unwrap();
+        service
+            .soft_delete_organization(actor_for(user_id), id)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -641,7 +773,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -653,11 +784,13 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
-        let err = service.soft_delete_organization(id).await.unwrap_err();
+        let err = service
+            .soft_delete_organization(actor_for(UserId(Uuid::new_v4())), id)
+            .await
+            .unwrap_err();
 
         assert!(matches!(err, CoreError::NotFound));
     }
@@ -669,7 +802,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_list_for_user()
@@ -681,7 +813,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -692,8 +823,8 @@ mod tests {
 
     fn create_cmd() -> CreateOrganizationCommand {
         CreateOrganizationCommand {
-            name: "Acme".into(),
-            slug: "acme".into(),
+            name: OrganizationName::try_from("Acme".to_owned()).unwrap(),
+            slug: Slug::try_from("acme".to_owned()).unwrap(),
             owner_id: UserId(Uuid::new_v4()),
         }
     }
@@ -703,24 +834,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let mut user_repository = MockUserRepository::new();
-
-        user_repository
-            .expect_find_by_sub()
-            .times(1)
-            .returning(|s| {
-                let now = Utc::now();
-                let user = User {
-                    id: UserId(Uuid::new_v4()),
-                    email: "owner@example.com".into(),
-                    username: "owner".into(),
-                    name: "Owner".into(),
-                    sub: s.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                };
-                Box::pin(async move { Ok(Some(user)) })
-            });
 
         organization_repository
             .expect_insert()
@@ -763,13 +876,12 @@ mod tests {
         member_repository
             .expect_assign_role()
             .times(1)
-            .returning(|_, _| Box::pin(async { Ok(()) }));
+            .returning(|_, _, _| Box::pin(async { Ok(()) }));
 
         let mut service = OrganizationService::new(
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -785,24 +897,6 @@ mod tests {
         let mut organization_repository = MockOrganizationRepository::new();
         let role_repository = MockRoleRepository::new();
         let member_repository = MockMemberRepository::new();
-        let mut user_repository = MockUserRepository::new();
-
-        user_repository
-            .expect_find_by_sub()
-            .times(1)
-            .returning(|s| {
-                let now = Utc::now();
-                let user = User {
-                    id: UserId(Uuid::new_v4()),
-                    email: "owner@example.com".into(),
-                    username: "owner".into(),
-                    name: "Owner".into(),
-                    sub: s.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                };
-                Box::pin(async move { Ok(Some(user)) })
-            });
 
         // Infra-style payload: constraint name only.
         organization_repository
@@ -816,7 +910,6 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
@@ -834,9 +927,19 @@ mod tests {
         let org_id = OrganizationId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        let role_repository = MockRoleRepository::new();
-        let member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        let mut member_repository = MockMemberRepository::new();
+
+        // The owner is authorized as a real member, not waved through: leaving
+        // enriches twice - once to read the organization, once to delete it.
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            org_id,
+            owner_id,
+            MemberId(Uuid::new_v4()),
+            2,
+        );
 
         organization_repository
             .expect_find_by_id()
@@ -866,11 +969,13 @@ mod tests {
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
-            MockAuthorizer::new(),
+            allowing_authorizer(),
         );
 
-        service.leave_organization(org_id, owner_id).await.unwrap();
+        service
+            .leave_organization(actor_for(owner_id), org_id, owner_id)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -881,9 +986,8 @@ mod tests {
         let member_id = MemberId(Uuid::new_v4());
 
         let mut organization_repository = MockOrganizationRepository::new();
-        let role_repository = MockRoleRepository::new();
+        let mut role_repository = MockRoleRepository::new();
         let mut member_repository = MockMemberRepository::new();
-        let user_repository = MockUserRepository::new();
 
         organization_repository
             .expect_find_by_id()
@@ -903,10 +1007,22 @@ mod tests {
                 Box::pin(async move { Ok(Some(org)) })
             });
 
+        // Once by the read guard inside `get_organization`, once by the
+        // membership lookup that follows.
+        role_repository
+            .expect_list_by_organization()
+            .with(eq(org_id))
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Vec::new()) }));
+        member_repository
+            .expect_list_role_ids()
+            .with(eq(org_id), eq(member_id))
+            .times(1)
+            .returning(|_, _| Box::pin(async { Ok(Vec::new()) }));
         member_repository
             .expect_find_by_org_and_user()
             .with(eq(org_id), eq(leaver_id))
-            .times(1)
+            .times(2)
             .returning(move |organization_id, user_id| {
                 let m = Member {
                     id: member_id,
@@ -919,18 +1035,104 @@ mod tests {
 
         member_repository
             .expect_remove()
-            .with(eq(member_id))
+            .with(eq(org_id), eq(member_id))
             .times(1)
-            .returning(|_| Box::pin(async { Ok(()) }));
+            .returning(|_, _| Box::pin(async { Ok(()) }));
 
         let mut service = OrganizationService::new(
             organization_repository,
             role_repository,
             member_repository,
-            user_repository,
             MockAuthorizer::new(),
         );
 
-        service.leave_organization(org_id, leaver_id).await.unwrap();
+        service
+            .leave_organization(actor_for(leaver_id), org_id, leaver_id)
+            .await
+            .unwrap();
+    }
+
+    /// A caller with no standing in the organization must not be able to read
+    /// it. Enrichment is the guard: it refuses before any action is evaluated.
+    #[tokio::test]
+    async fn get_organization_refuses_a_non_member() {
+        let id = OrganizationId(Uuid::new_v4());
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        organization_repository
+            .expect_find_by_id()
+            .returning(move |_| {
+                let organization = fixture(id);
+                Box::pin(async move { Ok(Some(organization)) })
+            });
+
+        let mut member_repository = MockMemberRepository::new();
+        member_repository
+            .expect_find_by_org_and_user()
+            .times(1)
+            .returning(|_, _| Box::pin(async { Ok(None) }));
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            MockRoleRepository::new(),
+            member_repository,
+            MockAuthorizer::new(),
+        );
+
+        let err = service
+            .get_organization(actor_for(UserId(Uuid::new_v4())), id)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, CoreError::Forbidden { .. }));
+    }
+
+    /// A member whose roles do not carry the organization-management bit must
+    /// not be able to delete it, even though enrichment lets them through.
+    #[tokio::test]
+    async fn soft_delete_refuses_a_member_without_manage_org() {
+        let id = OrganizationId(Uuid::new_v4());
+        let user_id = UserId(Uuid::new_v4());
+        let member_id = MemberId(Uuid::new_v4());
+
+        let mut organization_repository = MockOrganizationRepository::new();
+        organization_repository
+            .expect_find_by_id()
+            .returning(move |_| {
+                let organization = fixture(id);
+                Box::pin(async move { Ok(Some(organization)) })
+            });
+        organization_repository.expect_soft_delete().never();
+
+        let mut member_repository = MockMemberRepository::new();
+        let mut role_repository = MockRoleRepository::new();
+        stage_org_membership(
+            &mut member_repository,
+            &mut role_repository,
+            id,
+            user_id,
+            member_id,
+            1,
+        );
+
+        let mut authz = MockAuthorizer::new();
+        authz
+            .expect_evaluate()
+            .times(1)
+            .returning(|_| Box::pin(async { Ok(Decision::deny()) }));
+
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            authz,
+        );
+
+        let err = service
+            .soft_delete_organization(actor_for(user_id), id)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, CoreError::Forbidden { .. }));
     }
 }

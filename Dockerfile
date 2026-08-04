@@ -46,13 +46,29 @@ RUN \
 
 USER oxid
 
+# The migration CLI is a full DDL tool; it has no business in the image that
+# serves traffic. It gets its own, run as a job before a rollout.
+FROM runtime AS migrator
+
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/
+COPY --from=builder /usr/local/src/oxid/migrations /usr/local/oxid/migrations
+
+WORKDIR /usr/local/oxid
+ENTRYPOINT [ "sqlx", "migrate", "run" ]
+
+
 FROM runtime AS api
 
 COPY --from=builder /usr/local/src/oxid/target/release/api /usr/local/bin/api
 COPY --from=builder /usr/local/src/oxid/migrations /usr/local/oxid/migrations
-COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/
 
-EXPOSE 80
+# The API listens on 3456 and its health/metrics router on 3457. EXPOSE 80 was
+# wrong, and the unprivileged user this image runs as could not bind it anyway.
+EXPOSE 3456 3457
+
+# No HEALTHCHECK: the runtime image carries no HTTP client, and `api --help`
+# would pass whatever the server is doing. Probe /health on the internal port
+# from the orchestrator instead.
 
 ENTRYPOINT [ "api" ]
 
@@ -79,12 +95,22 @@ COPY apps/webapp/ ./
 
 RUN pnpm build
 
-FROM nginx:1.28.0-alpine3.21-slim AS webapp
+FROM nginxinc/nginx-unprivileged:1.28.0-alpine3.21 AS webapp
 
-COPY --from=webapp-build /usr/local/src/oxid/dist/client /usr/local/src/oxid
+# Assets are placed at build time and owned by the runtime user. The entrypoint
+# used to wipe and repopulate this directory on every start, which a non-root
+# process cannot do - and which was needless work besides.
+COPY --from=webapp-build --chown=101:101 /usr/local/src/oxid/dist/client /usr/share/nginx/html
 COPY apps/webapp/nginx.conf /etc/nginx/conf.d/default.conf
-COPY apps/webapp/docker-entrypoint.sh /docker-entrypoint.d/docker-entrypoint.sh
 
-EXPOSE 80
+# The pristine template stays out of the served tree so that every start
+# re-substitutes from placeholders rather than from the previous start's values.
+COPY --from=webapp-build /usr/local/src/oxid/dist/client/config.json /usr/local/share/oxid/config.json
 
-RUN chmod +x /docker-entrypoint.d/docker-entrypoint.sh
+# Mode set at copy time rather than by a later RUN: this image runs as a
+# non-root user, which cannot chmod a file root owns.
+COPY --chmod=0755 apps/webapp/docker-entrypoint.sh /docker-entrypoint.d/docker-entrypoint.sh
+
+# The unprivileged nginx image listens on 8080: a non-root process cannot bind
+# a port below 1024.
+EXPOSE 8080

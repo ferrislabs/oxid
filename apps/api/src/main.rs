@@ -18,7 +18,7 @@ use crate::{internal_router::internal_router, logger::init_tracing_and_logging, 
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
     let args = Arc::new(Args::parse());
-    init_tracing_and_logging(&args.log, "oxid", &args.observability)?;
+    let observability = init_tracing_and_logging(&args.log, "oxid", &args.observability)?;
 
     let app_state = state(args.clone()).await?;
 
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let internal_router = internal_router()?;
 
     let addr = get_addr(&args.server.host, args.server.port).await?;
-    let internal_addr = get_addr(&args.server.host, args.server.internal_port).await?;
+    let internal_addr = get_addr(&args.server.internal_host, args.server.internal_port).await?;
 
     info!(%addr, %internal_addr, "starting api and internal http servers");
 
@@ -34,6 +34,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         run_server(addr, router),
         run_server(internal_addr, internal_router),
     );
+
+    // Flush whatever the exporter still holds before the process exits.
+    observability.shutdown();
 
     Ok(())
 }

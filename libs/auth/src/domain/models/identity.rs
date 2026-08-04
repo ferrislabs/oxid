@@ -43,13 +43,41 @@ impl Identity {
     }
 }
 
+/// Realm roles as the identity provider sends them: `realm_access.roles`, a
+/// JSON array of strings that lands in [`Claims::extra`].
+///
+/// These were parsed into `extra` and then dropped on the floor - both identity
+/// branches hardcoded an empty vector - so the policy engine's super-admin
+/// bypass read an empty list and could never fire. Reading them here is what
+/// makes that control exist.
+///
+/// The claim is inside a token whose signature has already been verified
+/// against the realm's key set, so its contents are whatever the provider put
+/// there and are not caller-influenceable. That matters: the bypass grants
+/// every action on every organization.
+fn realm_roles(extra: &serde_json::Map<String, serde_json::Value>) -> Vec<String> {
+    extra
+        .get("realm_access")
+        .and_then(|access| access.get("roles"))
+        .and_then(|roles| roles.as_array())
+        .map(|roles| {
+            roles
+                .iter()
+                .filter_map(|role| role.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 impl From<Claims> for Identity {
     fn from(claims: Claims) -> Self {
+        let roles = realm_roles(&claims.extra);
+
         if let Some(client_id) = claims.client_id {
             Identity::Client(Client {
                 id: claims.sub.0,
                 client_id,
-                roles: Vec::new(),
+                roles,
                 scopes: Vec::new(),
             })
         } else {
@@ -57,7 +85,7 @@ impl From<Claims> for Identity {
                 id: claims.sub.0.clone(),
                 email: claims.email,
                 name: claims.name,
-                roles: Vec::new(),
+                roles,
                 username: claims.preferred_username.unwrap_or(claims.sub.0),
             })
         }
@@ -166,7 +194,8 @@ mod tests {
         assert!(!identity.is_client());
         assert_eq!(identity.id(), "user-123");
         assert_eq!(identity.username(), "johndoe");
-        assert!(identity.roles().is_empty());
+        assert_eq!(identity.roles(), ["user", "moderator"]);
+        assert!(identity.has_role("moderator"));
         assert!(!identity.has_role("admin"));
     }
 
@@ -179,7 +208,83 @@ mod tests {
         assert!(!identity.is_user());
         assert_eq!(identity.id(), "service-123");
         assert_eq!(identity.username(), "ferriscord-bot");
+        assert_eq!(identity.roles(), ["service", "bot"]);
+        assert!(identity.has_role("service"));
+    }
+}
+
+#[cfg(test)]
+mod realm_role_tests {
+    use serde_json::json;
+
+    use crate::domain::models::{
+        claims::{Audience, Claims, Subject},
+        identity::Identity,
+    };
+
+    fn claims_with(extra: serde_json::Map<String, serde_json::Value>) -> Claims {
+        Claims {
+            sub: Subject("user-1".to_owned()),
+            iss: "https://issuer.example".to_owned(),
+            aud: Some(Audience::Single("oxid".to_owned())),
+            exp: None,
+            email: None,
+            email_verified: None,
+            name: None,
+            preferred_username: Some("alice".to_owned()),
+            given_name: None,
+            family_name: None,
+            scope: "openid".to_owned(),
+            client_id: None,
+            extra,
+        }
+    }
+
+    #[test]
+    fn realm_roles_reach_the_identity() {
+        let mut extra = serde_json::Map::new();
+        extra.insert(
+            "realm_access".to_owned(),
+            json!({ "roles": ["oxid:admin"] }),
+        );
+
+        let identity: Identity = claims_with(extra).into();
+
+        assert!(identity.has_role("oxid:admin"));
+    }
+
+    #[test]
+    fn a_token_without_realm_access_carries_no_roles() {
+        let identity: Identity = claims_with(serde_json::Map::new()).into();
         assert!(identity.roles().is_empty());
-        assert!(!identity.has_role("service"));
+    }
+
+    #[test]
+    fn a_malformed_realm_access_is_not_fatal() {
+        // A provider sending the wrong shape must not grant anything, and must
+        // not panic either.
+        for shape in [
+            json!({ "roles": "oxid:admin" }),
+            json!("oxid:admin"),
+            json!(null),
+        ] {
+            let mut extra = serde_json::Map::new();
+            extra.insert("realm_access".to_owned(), shape);
+            let identity: Identity = claims_with(extra).into();
+            assert!(identity.roles().is_empty());
+        }
+    }
+
+    #[test]
+    fn non_string_entries_are_dropped_rather_than_stringified() {
+        let mut extra = serde_json::Map::new();
+        extra.insert(
+            "realm_access".to_owned(),
+            json!({ "roles": ["viewer", 42, null, "editor"] }),
+        );
+
+        let identity: Identity = claims_with(extra).into();
+
+        assert_eq!(identity.roles(), ["viewer", "editor"]);
     }
 }

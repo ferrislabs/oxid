@@ -1,4 +1,4 @@
-use common::RateLimitConfig;
+use common::{RateLimitConfig, Secret};
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct RateLimitArgs {
@@ -9,7 +9,7 @@ pub struct RateLimitArgs {
         default_value = "redis://localhost:6379",
         long_help = "Redis URL backing the rate limiter"
     )]
-    pub redis_url: String,
+    pub redis_url: Secret,
 
     #[arg(
         long = "rate-limit-per-minute",
@@ -44,7 +44,7 @@ mod tests {
     #[test]
     fn parse_defaults() {
         let cmd = Cmd::try_parse_from(["cmd"]).unwrap();
-        assert_eq!(cmd.rate_limit.redis_url, "redis://localhost:6379");
+        assert_eq!(cmd.rate_limit.redis_url.expose(), "redis://localhost:6379");
         assert_eq!(cmd.rate_limit.per_minute, 10);
     }
 
@@ -58,7 +58,7 @@ mod tests {
             "1000",
         ])
         .unwrap();
-        assert_eq!(cmd.rate_limit.redis_url, "redis://redis.prod:6379");
+        assert_eq!(cmd.rate_limit.redis_url.expose(), "redis://redis.prod:6379");
         assert_eq!(cmd.rate_limit.per_minute, 1000);
     }
 }

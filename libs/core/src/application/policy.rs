@@ -15,8 +15,8 @@
 //!    the [`Decision`] to a [`CoreError`].
 
 use authz::{
-    AccessEvaluationRequest, Action, Authorizer, Resource, SUBJECT_IAM_ROLES_KEY,
-    SUBJECT_PERMISSIONS_KEY, Subject,
+    AccessEvaluationRequest, Action, Authorizer, DEFAULT_SUPER_ADMIN_ROLE, Resource,
+    SUBJECT_IAM_ROLES_KEY, SUBJECT_PERMISSIONS_KEY, Subject,
 };
 use common::CoreError;
 use serde_json::json;
@@ -70,6 +70,29 @@ pub fn subject_user_id(subject: &Subject) -> Result<UserId, CoreError> {
 /// organization — the actor has authenticated but has no standing in
 /// this org, which is an authorization failure (not a 404 — that would
 /// leak existence). System subjects are short-circuited (no DB load).
+/// Whether the subject carries the super-admin realm role.
+///
+/// Enrichment has to know: it refuses a non-member before the policy engine is
+/// ever consulted, so a super-admin who belongs to no organization would be
+/// turned away by the very step meant to prepare their request. The bypass
+/// lives in the engine, but it is unreachable unless this lets them through.
+///
+/// Caveat: the role name is read from the shared default. An engine built with
+/// a custom `super_admin_role` would diverge from this check - the two should
+/// be given a single source before that configuration is used.
+fn carries_super_admin(subject: &Subject) -> bool {
+    subject
+        .properties
+        .get(SUBJECT_IAM_ROLES_KEY)
+        .and_then(|roles| roles.as_array())
+        .is_some_and(|roles| {
+            roles
+                .iter()
+                .filter_map(|role| role.as_str())
+                .any(|role| role == DEFAULT_SUPER_ADMIN_ROLE)
+        })
+}
+
 pub async fn enrich_for_organization<M, R>(
     subject: Subject,
     organization_id: OrganizationId,
@@ -80,7 +103,7 @@ where
     M: MemberRepository,
     R: RoleRepository,
 {
-    if subject.is_system() {
+    if subject.is_system() || carries_super_admin(&subject) {
         return Ok(subject);
     }
 
@@ -93,7 +116,7 @@ where
             reason: Some("not a member of this organization".to_owned()),
         })?;
 
-    let role_ids = members.list_role_ids(member.id).await?;
+    let role_ids = members.list_role_ids(organization_id, member.id).await?;
     let org_roles = roles.list_by_organization(organization_id).await?;
 
     let aggregated = org_roles

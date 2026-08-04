@@ -23,7 +23,10 @@ export function buildOidcProviderProps(): AuthProviderProps | null {
 		post_logout_redirect_uri: postLogoutRedirectUri,
 		response_type: 'code',
 		loadUserInfo: true,
-		userStore: new WebStorageStateStore({ store: window.localStorage }),
+		// sessionStorage, not localStorage: the stored object carries the refresh
+		// token, so persisting it past the tab means an XSS - or anyone on a
+		// shared machine - gets a credential that outlives the session.
+		userStore: new WebStorageStateStore({ store: window.sessionStorage }),
 		onSigninCallback:
 			cfg.onSigninCallback ??
 			(() => {

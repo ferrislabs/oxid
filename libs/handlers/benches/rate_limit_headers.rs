@@ -33,25 +33,25 @@ fn make_request(headers: &[(&str, &str)]) -> Request {
 #[divan::bench]
 fn client_ip_x_forwarded_for(bencher: divan::Bencher) {
     let req = make_request(&[("x-forwarded-for", "203.0.113.42, 10.0.0.1")]);
-    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback())));
+    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback(), true)));
 }
 
 #[divan::bench]
 fn client_ip_x_real_ip(bencher: divan::Bencher) {
     let req = make_request(&[("x-real-ip", "203.0.113.42")]);
-    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback())));
+    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback(), true)));
 }
 
 #[divan::bench]
 fn client_ip_forwarded_header(bencher: divan::Bencher) {
     let req = make_request(&[(FORWARDED.as_str(), r#"for="203.0.113.42";proto=https"#)]);
-    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback())));
+    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback(), true)));
 }
 
 #[divan::bench]
 fn client_ip_fallback_only(bencher: divan::Bencher) {
     let req = make_request(&[]);
-    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback())));
+    bencher.bench_local(|| divan::black_box(client_ip(&req, fallback(), true)));
 }
 
 #[divan::bench]

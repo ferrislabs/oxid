@@ -1571,16 +1571,27 @@ dependencies = [
 name = "handlers-organization"
 version = "0.1.0"
 dependencies = [
+ "args",
  "auth",
  "axum",
  "axum-extra",
  "chrono",
+ "clap",
  "handlers",
  "http 1.4.0",
+ "jsonwebtoken",
  "oxid-core",
+ "rate-limit",
+ "reqwest",
  "serde",
+ "serde_json",
+ "sqlx",
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
  "tracing",
  "utoipa",
+ "uuid",
 ]
 
 [[package]]
@@ -4445,6 +4456,7 @@ dependencies = [
  "futures-util",
  "http 1.4.0",
  "http-body 1.0.1",
+ "http-body-util",
  "iri-string",
  "pin-project-lite",
  "tower",
