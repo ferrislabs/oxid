@@ -57,10 +57,11 @@ impl<'tx> RoleRepository for PgRoleRepository<'tx> {
         let rows = sqlx::query_as!(
             RoleRow,
             r#"
-            SELECT id, organization_id, name, permissions, created_at, updated_at
-            FROM roles
-            WHERE organization_id = $1
-            ORDER BY created_at ASC
+            SELECT r.id, r.organization_id, r.name, r.permissions, r.created_at, r.updated_at
+            FROM roles r
+            INNER JOIN organizations o ON o.id = r.organization_id
+            WHERE r.organization_id = $1 AND o.deleted_at IS NULL
+            ORDER BY r.created_at ASC
             "#,
             organization_id.0,
         )

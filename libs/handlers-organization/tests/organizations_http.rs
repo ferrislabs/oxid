@@ -278,3 +278,63 @@ async fn two_identities_without_an_email_are_two_distinct_users() {
 
     assert_eq!(subjects, vec![ALICE.to_owned(), BOB.to_owned()]);
 }
+
+// --- Soft delete ----------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_slug_is_released_when_its_organization_is_deleted() {
+    // The uniqueness constraint spanned the whole table, deleted rows included,
+    // so a slug stayed reserved forever. Recreating an organization the caller
+    // had deleted failed with "slug already taken" — about an organization no
+    // read path can show them.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+    let org_id = create_org(&api, &token, "Acme", "acme").await;
+
+    sqlx::query("UPDATE organizations SET deleted_at = now() WHERE id = $1")
+        .bind(uuid::Uuid::parse_str(&org_id).expect("org id"))
+        .execute(&api.pool)
+        .await
+        .expect("soft delete");
+
+    let response = api
+        .post("/api/v1/organizations")
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "name": "Acme Again", "slug": "acme" }))
+        .send()
+        .await
+        .expect("request reaches the api");
+
+    assert_eq!(
+        response.status(),
+        StatusCode::CREATED,
+        "the slug of a deleted organization must be available again"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_deleted_organization_cannot_be_updated_by_its_owner() {
+    // Membership lookups did not join `organizations`, so a deleted tenant
+    // still had members and every organization-scoped path stayed reachable.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+    let org_id = create_org(&api, &token, "Acme", "acme").await;
+
+    sqlx::query("UPDATE organizations SET deleted_at = now() WHERE id = $1")
+        .bind(uuid::Uuid::parse_str(&org_id).expect("org id"))
+        .execute(&api.pool)
+        .await
+        .expect("soft delete");
+
+    let response = api
+        .patch(&format!("/api/v1/organizations/{org_id}"))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "name": "Revived", "slug": "revived" }))
+        .send()
+        .await
+        .expect("request reaches the api");
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
