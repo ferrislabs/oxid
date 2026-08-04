@@ -12,6 +12,17 @@ pub struct ServerArgs {
     )]
     pub allowed_origins: Vec<String>,
     #[arg(
+        long = "server-enable-api-docs",
+        env = "SERVER_ENABLE_API_DOCS",
+        name = "SERVER_ENABLE_API_DOCS",
+        default_value_t = false,
+        long_help = "Serve the Scalar and Swagger interfaces and the OpenAPI document. \
+They sit outside authentication, so enabling them publishes the full API surface \
+to anonymous callers."
+    )]
+    pub enable_api_docs: bool,
+
+    #[arg(
         long = "server-trust-forwarded-headers",
         env = "SERVER_TRUST_FORWARDED_HEADERS",
         name = "SERVER_TRUST_FORWARDED_HEADERS",
@@ -78,6 +89,7 @@ impl Default for ServerArgs {
     fn default() -> Self {
         Self {
             allowed_origins: vec![],
+            enable_api_docs: false,
             trust_forwarded_headers: false,
             host: "0.0.0.0".to_string(),
             port: 3333,
