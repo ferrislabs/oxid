@@ -57,10 +57,11 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         let rows = sqlx::query_as!(
             MemberRow,
             r#"
-            SELECT id, organization_id, user_id, joined_at
-            FROM organization_members
-            WHERE organization_id = $1
-            ORDER BY joined_at ASC
+            SELECT m.id, m.organization_id, m.user_id, m.joined_at
+            FROM organization_members m
+            INNER JOIN organizations o ON o.id = m.organization_id
+            WHERE m.organization_id = $1 AND o.deleted_at IS NULL
+            ORDER BY m.joined_at ASC
             "#,
             organization_id.0,
         )
@@ -109,9 +110,10 @@ impl<'tx> MemberRepository for PgMemberRepository<'tx> {
         let row = sqlx::query_as!(
             MemberRow,
             r#"
-            SELECT id, organization_id, user_id, joined_at
-            FROM organization_members
-            WHERE organization_id = $1 AND user_id = $2
+            SELECT m.id, m.organization_id, m.user_id, m.joined_at
+            FROM organization_members m
+            INNER JOIN organizations o ON o.id = m.organization_id
+            WHERE m.organization_id = $1 AND m.user_id = $2 AND o.deleted_at IS NULL
             "#,
             organization_id.0,
             user_id.0,

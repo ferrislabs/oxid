@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, organization_id, user_id, joined_at\n            FROM organization_members\n            WHERE organization_id = $1 AND user_id = $2\n            ",
+  "query": "\n            SELECT m.id, m.organization_id, m.user_id, m.joined_at\n            FROM organization_members m\n            INNER JOIN organizations o ON o.id = m.organization_id\n            WHERE m.organization_id = $1 AND m.user_id = $2 AND o.deleted_at IS NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -37,5 +37,5 @@
       false
     ]
   },
-  "hash": "bc4c8424f1a2b7c2b01dd8cac612b2f15651551c9f1b2bb723dec84bfe5e0e35"
+  "hash": "69947dfc7dcb4bf8dd02cf31e6a462ddb638c0732f091dd49fc56cd55469adb2"
 }
