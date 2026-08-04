@@ -29,7 +29,7 @@ impl Display for UserId {
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: UserId,
-    pub email: String,
+    pub email: Option<String>,
     pub username: String,
     pub name: String,
     pub sub: String,
