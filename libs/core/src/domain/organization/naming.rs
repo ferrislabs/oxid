@@ -205,3 +205,86 @@ mod tests {
         ));
     }
 }
+
+impl Slug {
+    /// Derives a slug from arbitrary text — a username, an email local part.
+    ///
+    /// Returns `None` when nothing usable survives, rather than inventing a
+    /// value: a caller that cannot name an organization should say so instead
+    /// of creating one called `x`.
+    pub fn from_seed(seed: &str) -> Option<Self> {
+        let mut out = String::with_capacity(seed.len());
+        let mut last_was_hyphen = false;
+
+        for ch in seed.chars() {
+            let mapped = if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            };
+            if mapped == '-' {
+                // Collapse runs, and never start with one.
+                if last_was_hyphen || out.is_empty() {
+                    continue;
+                }
+                last_was_hyphen = true;
+            } else {
+                last_was_hyphen = false;
+            }
+            out.push(mapped);
+            if out.len() >= SLUG_MAX {
+                break;
+            }
+        }
+
+        let trimmed = out.trim_end_matches('-');
+        Self::try_from(trimmed.to_owned()).ok()
+    }
+
+    /// The same slug with a disambiguating suffix, for when the base is taken.
+    /// Truncates the stem if needed so the result still fits.
+    pub fn with_suffix(&self, n: u32) -> Option<Self> {
+        let suffix = format!("-{n}");
+        let room = SLUG_MAX.saturating_sub(suffix.len());
+        let stem = self.0.get(..room.min(self.0.len()))?.trim_end_matches('-');
+        Self::try_from(format!("{stem}{suffix}")).ok()
+    }
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::*;
+
+    #[test]
+    fn a_username_becomes_a_usable_slug() {
+        assert_eq!(Slug::from_seed("Nathaël B.").unwrap().as_str(), "natha-l-b");
+        assert_eq!(Slug::from_seed("acme_corp").unwrap().as_str(), "acme-corp");
+    }
+
+    #[test]
+    fn separators_collapse_and_never_sit_on_an_edge() {
+        assert_eq!(Slug::from_seed("  --acme--  ").unwrap().as_str(), "acme");
+    }
+
+    #[test]
+    fn a_seed_with_nothing_usable_yields_nothing() {
+        // Better than inventing a name the user never chose.
+        assert!(Slug::from_seed("").is_none());
+        assert!(Slug::from_seed("...").is_none());
+        assert!(Slug::from_seed("x").is_none()); // below the minimum length
+    }
+
+    #[test]
+    fn a_long_seed_is_truncated_to_a_valid_slug() {
+        let slug = Slug::from_seed(&"a".repeat(200)).unwrap();
+        assert_eq!(slug.as_str().len(), SLUG_MAX);
+    }
+
+    #[test]
+    fn a_suffix_keeps_the_result_within_bounds() {
+        let base = Slug::from_seed(&"b".repeat(200)).unwrap();
+        let suffixed = base.with_suffix(12).unwrap();
+        assert!(suffixed.as_str().len() <= SLUG_MAX);
+        assert!(suffixed.as_str().ends_with("-12"));
+    }
+}

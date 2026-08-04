@@ -19,6 +19,10 @@ fn map_organization_conflict(err: CoreError) -> CoreError {
 
 use authz::{Authorizer, Resource, Subject};
 
+/// How many slug variants to try before giving up. Beyond this the seed is
+/// hopeless and a caller should be told, not looped on.
+const MAX_SLUG_ATTEMPTS: u32 = 20;
+
 use crate::{
     UserId,
     application::policy,
@@ -27,6 +31,7 @@ use crate::{
         organization::{
             Organization, OrganizationId,
             commands::{CreateOrganizationCommand, UpdateOrganizationCommand},
+            naming::{OrganizationName, Slug},
             ports::OrganizationRepository,
         },
         role::{
@@ -250,6 +255,82 @@ where
             .await?;
 
         Ok(organization)
+    }
+
+    /// Gives a user their first organization, once.
+    ///
+    /// Deliberately not part of authentication: user provisioning already runs
+    /// on every authenticated request, and adding organization creation there
+    /// would put a write on the hot path of every call. This is a first-login
+    /// action, invoked once, and it is idempotent - a replay, a refreshed page
+    /// or a concurrent second call finds the existing organization and returns
+    /// it rather than creating another.
+    #[tracing::instrument(skip(self), fields(user_id = %owner_id.0), err)]
+    pub async fn ensure_default_organization(
+        &mut self,
+        owner_id: UserId,
+        seed: &str,
+    ) -> Result<Organization, CoreError> {
+        if let Some(existing) = self
+            .organization_repository
+            .list_for_user(owner_id)
+            .await?
+            .into_iter()
+            .next()
+        {
+            return Ok(existing);
+        }
+
+        let base = Slug::from_seed(seed).ok_or_else(|| {
+            CoreError::Conflict("cannot derive an organization name from this account".to_owned())
+        })?;
+        let name = OrganizationName::try_from(seed.trim().to_owned())
+            .unwrap_or_else(|_| OrganizationName::try_from(base.as_str().to_owned())
+                .expect("a valid slug is a valid name"));
+
+        // Slugs are unique among live organizations and two accounts with the
+        // same display name are ordinary, so the derived slug has to be checked
+        // before it is used. Retrying a failed insert is not an option: a unique
+        // violation aborts the enclosing transaction, and everything after it
+        // would fail too.
+        //
+        // Reading first leaves a race with a concurrent bootstrap. The unique
+        // index still refuses the duplicate, so the loser gets a conflict and a
+        // retry finds the slug taken - correctness rests on the constraint, not
+        // on this check.
+        let slug = self.first_available_slug(&base).await?;
+
+        self.create_organization(CreateOrganizationCommand {
+            name,
+            slug,
+            owner_id,
+        })
+        .await
+    }
+
+    async fn first_available_slug(&mut self, base: &Slug) -> Result<Slug, CoreError> {
+        for attempt in 0..MAX_SLUG_ATTEMPTS {
+            let candidate = if attempt == 0 {
+                base.clone()
+            } else {
+                match base.with_suffix(attempt + 1) {
+                    Some(slug) => slug,
+                    None => break,
+                }
+            };
+
+            if !self
+                .organization_repository
+                .slug_is_taken(candidate.as_str())
+                .await?
+            {
+                return Ok(candidate);
+            }
+        }
+
+        Err(CoreError::Conflict(
+            "could not find an available organization slug".to_owned(),
+        ))
     }
 
     #[tracing::instrument(skip(self), fields(organization_id = %organization_id.0, user_id = %user_id.0), err)]

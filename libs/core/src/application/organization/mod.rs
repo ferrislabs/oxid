@@ -14,6 +14,21 @@ use crate::{
 
 impl OxidUseCase {
     #[transactional(organization, role, member, authz)]
+    pub async fn ensure_default_organization(
+        &self,
+        owner_id: UserId,
+        seed: String,
+    ) -> Result<Organization, CoreError> {
+        let mut service = OrganizationService::new(
+            organization_repository,
+            role_repository,
+            member_repository,
+            authz,
+        );
+        service.ensure_default_organization(owner_id, &seed).await
+    }
+
+    #[transactional(organization, role, member, authz)]
     pub async fn create_organization(
         &self,
         command: CreateOrganizationCommand,
