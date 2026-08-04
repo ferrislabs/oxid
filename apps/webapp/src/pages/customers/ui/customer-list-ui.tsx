@@ -1,5 +1,5 @@
 import { MoreHorizontal, Plus, Search, Trash2, UserPlus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button } from '#/components/ui/button'
 import {
 	DropdownMenu,
@@ -16,6 +16,13 @@ import {
 
 interface CustomerListUIProps {
 	customers: Customer[]
+	/// Search and filter are owned by the feature, per the project's
+	/// feature/UI split: when the list becomes server-paginated this state has
+	/// to travel with the query, and it cannot do that from down here.
+	search: string
+	filter: Filter
+	onSearchChange: (search: string) => void
+	onFilterChange: (filter: Filter) => void
 	isLoading?: boolean
 	onAdd?: () => void
 	onEdit?: (customer: Customer) => void
@@ -36,7 +43,7 @@ const BADGE_COLOR: Record<CustomerCategory, string> = {
 		'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
 }
 
-type Filter = 'all' | CustomerCategory
+export type Filter = 'all' | CustomerCategory
 
 const FILTERS: { id: Filter; label: string }[] = [
 	{ id: 'all', label: 'Tous' },
@@ -47,14 +54,15 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 export function CustomerListUI({
 	customers,
+	search,
+	filter,
+	onSearchChange,
+	onFilterChange,
 	isLoading,
 	onAdd,
 	onEdit,
 	onDelete,
 }: CustomerListUIProps) {
-	const [search, setSearch] = useState('')
-	const [filter, setFilter] = useState<Filter>('all')
-
 	const counts = useMemo(() => {
 		const c = {
 			total: customers.length,
@@ -108,7 +116,7 @@ export function CustomerListUI({
 						<button
 							type="button"
 							key={f.id}
-							onClick={() => setFilter(f.id)}
+							onClick={() => onFilterChange(f.id)}
 							className={`rounded-xl border px-4 py-1.5 text-sm font-medium transition-colors ${
 								active
 									? 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-300'
@@ -155,7 +163,7 @@ export function CustomerListUI({
 						<input
 							type="search"
 							value={search}
-							onChange={(e) => setSearch(e.target.value)}
+							onChange={(e) => onSearchChange(e.target.value)}
 							placeholder="Rechercher un client…"
 							className="h-10 w-full rounded-xl border bg-card pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-500/20"
 						/>
