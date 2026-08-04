@@ -49,6 +49,24 @@ impl<'tx> OrganizationRepository for PgOrganizationRepository<'tx> {
     }
 
     #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
+    async fn slug_is_taken(&mut self, slug: &str) -> Result<bool, CoreError> {
+        let mut tx = self.tx.lock().await;
+        let exists = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM organizations WHERE slug = $1 AND deleted_at IS NULL
+            ) AS "exists!"
+            "#,
+            slug,
+        )
+        .fetch_one(&mut ***tx)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(exists)
+    }
+
+    #[tracing::instrument(skip(self), fields(db.system = "postgresql", db.operation = "select", db.table = "organizations"), err)]
     async fn find_by_id(&mut self, id: OrganizationId) -> Result<Option<Organization>, CoreError> {
         let mut tx = self.tx.lock().await;
         let row = sqlx::query_as!(

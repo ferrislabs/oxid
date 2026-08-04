@@ -6,8 +6,11 @@ use axum::{
 use axum_extra::routing::TypedPath;
 use handlers::{AppState, auth::auth_middleware};
 
-use crate::paths::{CurrentUserOrganizationsPath, OrganizationPath, OrganizationsPath};
+use crate::paths::{
+    CurrentUserBootstrapPath, CurrentUserOrganizationsPath, OrganizationPath, OrganizationsPath,
+};
 
+pub mod bootstrap;
 pub mod create;
 pub mod list_mine;
 pub mod paths;
@@ -24,5 +27,9 @@ pub fn router(state: &AppState) -> Router<AppState> {
         // panicking stub: a 405 is an answer, a dropped connection is not.
         .route(OrganizationPath::PATH, patch(update::handler))
         .route(CurrentUserOrganizationsPath::PATH, get(list_mine::handler))
+        // Explicit and called once, rather than a side effect of every
+        // authenticated request: provisioning already runs there and adding a
+        // write per call is what this deliberately avoids.
+        .route(CurrentUserBootstrapPath::PATH, post(bootstrap::handler))
         .layer(from_fn_with_state(state.clone(), auth_middleware))
 }

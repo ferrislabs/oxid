@@ -26,6 +26,7 @@ impl Modify for SecurityAddon {
 #[openapi(
     info(title = "Oxid API", description = "API for Oxid", version = "0.1.0"),
     paths(
+        organization::bootstrap::handler,
         organization::create::handler,
         organization::list_mine::handler,
         organization::update::handler,

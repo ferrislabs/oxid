@@ -443,3 +443,80 @@ async fn a_super_admin_can_act_on_an_organization_they_do_not_belong_to() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+// --- First login ----------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_first_login_yields_one_organization_and_replaying_yields_the_same() {
+    // Nothing created an organization automatically: a new user landed with
+    // none and had to fill a form. Idempotence is what makes this safe to call
+    // on every load rather than exactly once.
+    let api = TestApi::start().await;
+    let token = alice_token(&api);
+
+    let first: serde_json::Value = api
+        .post("/api/v1/users/@me/bootstrap")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request reaches the api")
+        .json()
+        .await
+        .expect("json body");
+
+    let second: serde_json::Value = api
+        .post("/api/v1/users/@me/bootstrap")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request reaches the api")
+        .json()
+        .await
+        .expect("json body");
+
+    assert_eq!(first["data"]["id"], second["data"]["id"]);
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM organizations")
+        .fetch_one(&api.pool)
+        .await
+        .expect("count organizations");
+    assert_eq!(count, 1, "replaying must not create a second organization");
+
+    // And the caller can now see it, which is the whole point.
+    let listed: serde_json::Value = api
+        .get("/api/v1/users/@me/organizations")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request reaches the api")
+        .json()
+        .await
+        .expect("json body");
+    assert_eq!(listed["data"].as_array().expect("array").len(), 1);
+}
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn two_accounts_with_the_same_name_both_get_an_organization() {
+    // Deriving a slug without handling the collision would only move the
+    // conflict from the creation form to this path.
+    let api = TestApi::start().await;
+
+    for subject in [ALICE, BOB] {
+        let response = api
+            .post("/api/v1/users/@me/bootstrap")
+            .bearer_auth(api.token(subject, "atelier", &format!("{subject}@example.com")))
+            .send()
+            .await
+            .expect("request reaches the api");
+        assert_eq!(response.status(), StatusCode::OK, "{subject} should be provisioned");
+    }
+
+    let slugs: Vec<String> = sqlx::query_scalar("SELECT slug FROM organizations ORDER BY slug")
+        .fetch_all(&api.pool)
+        .await
+        .expect("read slugs");
+
+    assert_eq!(slugs, vec!["atelier".to_owned(), "atelier-2".to_owned()]);
+}
