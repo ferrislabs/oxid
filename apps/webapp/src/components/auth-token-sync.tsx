@@ -23,5 +23,21 @@ export function AuthTokenSync() {
 		auth.user?.expires_at,
 	])
 
+	// Expiry was collected and never acted on: when renewal failed the library
+	// kept the user in its store, so the interface stayed authenticated-looking
+	// and the next call would have carried a stale token. Drop the credential
+	// and let the guard send the user back to the provider.
+	useEffect(() => {
+		const events = auth.events
+		if (!events) return
+
+		const onExpired = () => {
+			clearAuth()
+			void auth.signinRedirect()
+		}
+
+		return events.addAccessTokenExpired(onExpired)
+	}, [auth.events, auth.signinRedirect])
+
 	return null
 }

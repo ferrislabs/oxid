@@ -9,16 +9,22 @@ CONFIG_FILE="$HTML_DIR/config.json"
 rm -rf -- "${HTML_DIR:?}/"* "${HTML_DIR:?}/".[!.]* "${HTML_DIR:?}/"..?*
 cp -r "$SRC_DIR"/* "$HTML_DIR"
 
-if [ -f "$CONFIG_FILE" ]; then
-  api_url="${API_URL:-}"
-  escaped_api_url=$(printf '%s' "$api_url" | sed -e 's/[\/&|]/\\&/g')
+# Every value the client needs at runtime is templated here. The OIDC client id
+# used to be a build-time variable that nothing supplied, so the published image
+# could never authenticate: the config mechanism answered "where" but not "who".
+substitute() {
+  placeholder="$1"
+  value="$2"
+  escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
   # shellcheck disable=SC2016
-  sed -i "s|\${API_URL}|$escaped_api_url|g" "$CONFIG_FILE"
+  sed -i "s|\${$placeholder}|$escaped|g" "$CONFIG_FILE"
+}
 
-  issuer_url="${ISSUER_URL:-}"
-  escaped_issuer_url=$(printf '%s' "$issuer_url" | sed -e 's/[\/&|]/\\&/g')
-  # shellcheck disable=SC2016
-  sed -i "s|\${ISSUER_URL}|$escaped_issuer_url|g" "$CONFIG_FILE"
+if [ -f "$CONFIG_FILE" ]; then
+  substitute API_URL "${API_URL:-}"
+  substitute ISSUER_URL "${ISSUER_URL:-}"
+  substitute OIDC_CLIENT_ID "${OIDC_CLIENT_ID:-}"
+  substitute OIDC_SCOPE "${OIDC_SCOPE:-openid profile email}"
 fi
 
 exec "$@"

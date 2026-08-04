@@ -9,9 +9,9 @@ export function CustomerListFeature() {
 	const [customers] = useState<Customer[]>(MOCK_CUSTOMERS)
 	const [isLoading] = useState(false)
 
-	const handleAdd = () => {
-		console.log('[customers] add')
-	}
+	// Not implemented: these screens run on mocks, and the handlers logged the
+	// customer record to the console, which shipped to production.
+	const handleAdd = () => {}
 
 	const handleEdit = (customer: Customer) => {
 		void navigate({
@@ -20,9 +20,7 @@ export function CustomerListFeature() {
 		})
 	}
 
-	const handleDelete = (customer: Customer) => {
-		console.log('[customers] delete', customer.id)
-	}
+	const handleDelete = (_customer: Customer) => {}
 
 	return (
 		<CustomerListUI
