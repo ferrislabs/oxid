@@ -420,3 +420,26 @@ async fn a_slug_that_would_break_routing_is_rejected() {
         );
     }
 }
+
+// --- Super-admin bypass ---------------------------------------------------
+
+#[tokio::test]
+#[ignore = "requires docker"]
+async fn a_super_admin_can_act_on_an_organization_they_do_not_belong_to() {
+    // The bypass was documented and inert: the identity hardcoded an empty role
+    // list, so `iam.roles` was always empty and the check could never fire. An
+    // operator had no way to intervene on a tenant they were not a member of.
+    let api = TestApi::start().await;
+    let org_id = create_org(&api, &alice_token(&api), "Acme", "acme").await;
+
+    let operator = api.token_with_realm_roles(BOB, "operator", &["oxid:admin"]);
+    let response = api
+        .patch(&format!("/api/v1/organizations/{org_id}"))
+        .bearer_auth(operator)
+        .json(&serde_json::json!({ "name": "Acme Renamed", "slug": "acme-renamed" }))
+        .send()
+        .await
+        .expect("request reaches the api");
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
